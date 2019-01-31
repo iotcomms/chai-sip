@@ -8,35 +8,31 @@
   },
   "author": "IOT Communications International",
   "license": "MIT",
-
   "repository": {
-     "type": "git",
-     "url": "https://github.com/iotcomms/chai-sip.git"
-   },
-   "keywords": [
-     "sip",
-     "chai",
-     "chai-plugin",
-     "chai util",
-     "rtp",
-     "siprec",
-     "scaip",
-     "ci",
-     "cd"
-   ],
-
-
-   "bugs": {
-     "url": "https://github.com/iotcomms/chai-sip/issues"
-   },
-   "homepage": "https://github.com/iotcomms/chai-sip",
-
-
+    "type": "git",
+    "url": "https://github.com/iotcomms/chai-sip.git"
+  },
+  "keywords": [
+    "sip",
+    "chai",
+    "chai-plugin",
+    "chai util",
+    "rtp",
+    "siprec",
+    "scaip",
+    "ci",
+    "cd"
+  ],
+  "bugs": {
+    "url": "https://github.com/iotcomms/chai-sip/issues"
+  },
+  "homepage": "https://github.com/iotcomms/chai-sip",
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.0.17",
     "ip": "^1.1.5",
     "sdp-transform": "^2.5.0",
     "sip": "0.0.4",
+    "uws": "^10.148.1",
     "winston": "^2.4.0"
   },
   "devDependencies": {
