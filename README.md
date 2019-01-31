@@ -39,3 +39,5 @@ If you need to troubleshoot your tests and get more information about what is go
 ## Getting started
 
 Have a look at the examples in [this repository](https://github.com/iotcomms/chai-sip-examples).
+
+*This project is sponsored by [iotcomms.io](https://iotcomms.io).*
