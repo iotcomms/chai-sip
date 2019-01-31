@@ -1,4 +1,9 @@
 # chai-sip
+
+## Installation
+
+`$ npm install chai-sip --save`
+
 ## Introduction
 [Chai](https://github.com/chaijs/chai) plugin simplifying development of SIP server tests written in Node for CI/CD pipelines. It supports sending SIP requests and assert based on responses.
 
