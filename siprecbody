@@ -1,0 +1,75 @@
+--foobar
+Content-Type: application/sdp
+Content-Disposition: session;handling=required
+
+v=0
+o=CiscoSystemsSIP-GW-UserAgent 509 7422 IN IP4 9.42.25.149
+s=SIP Call
+c=IN IP4 127.0.0.1
+t=0 0
+m=audio 16552 RTP/AVP 8 101
+c=IN IP4 127.0.0.1
+a=rtpmap:8 PCMA/8000
+a=rtpmap:101 telephone-event/8000
+a=fmtp:101 0-16
+a=ptime:20
+a=sendonly
+a=label:1
+a=ssrc:11111 cname:caller@example.com
+m=audio 16554 RTP/AVP 8 101
+c=IN IP4 127.0.0.1
+a=rtpmap:8 PCMA/8000
+a=rtpmap:101 telephone-event/8000
+a=fmtp:101 0-16
+a=ptime:20
+a=sendonly
+a=label:2
+a=ssrc:22222 cname:callee@example.com
+
+--foobar
+Content-Type: application/rs-metadata+xml
+Content-Disposition: recording-session
+
+<?xml version="1.0" encoding="UTF-8"?>
+<recording xmlns="urn:ietf:params:xml:ns:recording:1">
+    <datamode>complete</datamode>
+    <session session_id="JaPQeP1CEeSA66sYHx7YVg==">
+        <start-time>2015-05-19T09:42:06.911Z</start-time>
+    </session>
+    <participant participant_id="JaPQeP1CEeSA76sYHx7YVg==">
+        <nameID aor="sip:808808@9.0.0.174">
+            <name xml:lang="en">808808</name>
+        </nameID>
+    </participant>
+    <participantsessionassoc participant_id="JaPQeP1CEeSA76sYHx7YVg==" session_id="JaPQeP1CEeSA66sYHx7YVg==">
+        <associate-time>2015-05-19T09:42:06.911Z</associate-time>
+    </participantsessionassoc>
+    <stream stream_id="JaPQeP1CEeSA8KsYHx7YVg==" session_id="JaPQeP1CEeSA66sYHx7YVg==">
+      <label>1</label>
+    </stream>
+
+    <participant participant_id="JaPQeP1CEeSA8qsYHx7YVg==">
+        <nameID aor="sip:909909@9.0.0.174">
+            <name xml:lang="en">909909</name>
+        </nameID>
+    </participant>
+    <participantsessionassoc participant_id="JaPQeP1CEeSA8qsYHx7YVg==" session_id="JaPQeP1CEeSA66sYHx7YVg==">
+        <associate-time>2015-05-19T09:42:06.911Z</associate-time>
+    </participantsessionassoc>
+    <stream stream_id="JaPQeP1CEeSA86sYHx7YVg==" session_id="JaPQeP1CEeSA66sYHx7YVg==">
+      <label>2</label>
+    </stream>
+
+    <participantstreamassoc participant_id="JaPQeP1CEeSA76sYHx7YVg==">
+        <send>JaPQeP1CEeSA8KsYHx7YVg==</send>
+        <recv>JaPQeP1CEeSA86sYHx7YVg==</recv>
+        <send>JaPQeP1CEeSA8asYHx7YVg==</send>
+        <recv>JaPQeP1CEeSA9KsYHx7YVg==</recv>
+    </participantstreamassoc>
+    <participantstreamassoc participant_id="JaPQeP1CEeSA8qsYHx7YVg==">
+        <send>JaPQeP1CEeSA86sYHx7YVg==</send>
+        <recv>JaPQeP1CEeSA8KsYHx7YVg==</recv>
+        <send>JaPQeP1CEeSA9KsYHx7YVg==</send>
+        <recv>JaPQeP1CEeSA8asYHx7YVg==</recv>
+    </participantstreamassoc>
+  </recording>

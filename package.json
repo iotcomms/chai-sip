@@ -1,0 +1,24 @@
+{
+  "name": "chai-sip",
+  "version": "0.0.1",
+  "description": "SIP plugin for Chai",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "IOT Communications International",
+  "license": "MIT",
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.0.17",
+    "chai": "^4.2.0",
+    "ip": "^1.1.5",
+    "sdp-transform": "^2.5.0",
+    "sip": "0.0.4",
+    "winston": "^2.4.0"
+  },
+  "devDependencies": {
+    "eslint": "^5.12.1",
+    "jshint": "^2.9.7",
+    "lint": "^1.1.2"
+  }
+}
