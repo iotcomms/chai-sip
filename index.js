@@ -209,10 +209,19 @@ function handle200(rs) {
 }
 
 function replyToDigest(request,response,callback) {
+  l.verbose("replyToDigest",request.uri);
+
+  if(sipParams.headers) {
+    if(sipParams.headers.route) {
+      l.debug("Update route header");
+      request.headers.route=sipParams.headers.route;
+    }
+  }
+
   var session = {nonce: ""};
   var creds = {user:sipParams.userid,password:sipParams.password,realm:sipParams.domain, nonce:"",uri:""};
-
   digest.signRequest(session,request,response,creds);
+  l.verbose("Sending request again with authorization header",JSON.stringify(request,null,2));
   sip.send(request,function(rs) {
     l.debug("Received after sending authorized request: "+rs.status);
     if(rs.status==200){
@@ -252,6 +261,13 @@ function makeRequest(method, destination, headers, contentType, body) {
 
     }
   };
+
+  if(sipParams.headers) {
+    if(sipParams.headers.route) {
+      l.debug("sipParams.headers.route",sipParams.headers.route);
+      req.headers.route=sipParams.headers.route;
+    }
+  }
 
   if(headers) {
 
@@ -418,9 +434,10 @@ module.exports = function (chai, utils) {
             l.verbose("Got response " + rs.status + " for callid "+ rs.headers["call-id"]);
 
             if(rs.status==401 || rs.status==407) {
-              replyToDigest(request,rs,callback);
               l.verbose("Received auth response");
               l.verbose(JSON.stringify(rs,null,2));
+              replyToDigest(request,rs,callback);
+
               return;
 
             }
