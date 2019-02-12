@@ -158,9 +158,15 @@ function handle200(rs) {
     if(sdp.media.length>1) {
       if(sdp.media[1].type=="audio") {
         l.verbose("play RTP audio 1");
+        var ip2;
+        if(sdp.media[1].connection) {
+          ip2 = sdp.media[1].connection.ip;
+        } else {
+          ip2 =sdp.origin.address;
+        }
         //sdp.media[1].ptime*8;
         //exec('ffmpeg -re -f lavfi -i aevalsrc="sin(400*2*PI*t)" -ac 1 -b:a 64 -ar 8000  -acodec pcm_alaw -f rtp rtp://' + sdp.media[0].connection.ip  + ':' + sdp.media[0].port + '?pkt_size=258', (err, stdout, stderr) => {
-        exec(ffmpeg.path + " -re  -i "+__basedir+"/callee.wav -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn -acodec pcm_alaw -f rtp rtp://" + sdp.media[1].connection.ip  + ":" + sdp.media[1].port , (err, stdout, stderr) => {
+        exec(ffmpeg.path + " -re  -i "+__basedir+"/callee.wav -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn -acodec pcm_alaw -f rtp rtp://" + ip2 + ":" + sdp.media[1].port , (err, stdout, stderr) => {
 
           if (err) {
             l.error("Completed ffmpeg",err);
@@ -482,7 +488,16 @@ module.exports = function (chai, utils) {
 
 
         }
-        request = makeRequest("INVITE",destination,headers,"multipart/mixed;boundary=foobar",body);
+
+        var ct;
+        l.debug("Content type:",contentType);
+        if(!contentType) {
+          ct="multipart/mixed;boundary=foobar";
+        } else {
+          ct=contentType;
+        }
+
+        request = makeRequest("INVITE",destination,headers,ct,body);
         return this;
       },
       message : function(destination,headers,contentType,body) {
