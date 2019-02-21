@@ -70,15 +70,47 @@ function sendBye(req) {
 
 }
 
-function handle200(rs) {
-  // yes we can get multiple 2xx response with different tags
-  if(request.method!="INVITE") {
-    return;
+
+function sendCancel(req) {
+  var cancel = {
+    method: "CANCEL",
+    uri: request.uri,
+    headers: {
+      to: req.headers.to,
+      via: req.headers.via,
+      from: req.headers.from,
+      "call-id": req.headers["call-id"],
+      cseq: {method: "CANCEL", seq: req.headers.cseq.seq}
+
+    }
+  };
+
+  //bye.headers["via"] = [req.headers.via[2]];
+
+  if(req.headers["record-route"]) {
+    cancel.headers["route"] = [];
+    for(var i=req.headers["record-route"].length-1;i>=0;i--){
+      l.debug("Push bye rr header",req.headers["record-route"][i]);
+      cancel.headers["route"].push(req.headers["record-route"][i]);
+
+    }
   }
-  l.debug("call "+ rs.headers["call-id"] +" answered with tag " + rs.headers.to.params.tag);
 
-  // sending ACK
+  l.verbose("Send CANCEL request",JSON.stringify(cancel,null,2));
 
+  request = cancel;
+
+  sip.send(cancel,function(rs) {
+    l.verbose("Received CANCEL response",JSON.stringify(rs,null,2));
+  });
+
+
+
+  return cancel;
+
+}
+
+function sendAck(rs) {
   l.verbose("Generate ACK reply for response",rs);
   var headers = {
 
@@ -112,6 +144,19 @@ function handle200(rs) {
 
 
   sip.send(ack);
+
+}
+
+function handle200(rs) {
+  // yes we can get multiple 2xx response with different tags
+  if(request.method!="INVITE") {
+    return;
+  }
+  l.debug("call "+ rs.headers["call-id"] +" answered with tag " + rs.headers.to.params.tag);
+
+  // sending ACK
+
+  sendAck();
 
 
 
@@ -431,13 +476,23 @@ module.exports = function (chai, utils) {
     return {
 
 
-      onFinalResponse : function(callback) {
+
+
+      onFinalResponse : function(callback,provisionalCallback) {
         l.verbose("Sending");
         l.verbose(JSON.stringify(request,null,2),"\n\n");
         sip.send(request,
           function(rs) {
 
             l.verbose("Got response " + rs.status + " for callid "+ rs.headers["call-id"]);
+
+            if(rs.status<200) {
+              if(provisionalCallback) {
+                l.debug("Calling provisionalCallback callback");
+                provisionalCallback(rs);
+              }
+              return;
+            }
 
             if(rs.status==401 || rs.status==407) {
               l.verbose("Received auth response");
@@ -449,6 +504,7 @@ module.exports = function (chai, utils) {
             }
             if(rs.status >= 300) {
               l.verbose("call failed with status " + rs.status);
+              sendAck(rs);
               gotFinalResponse(rs,callback);
 
               return;
@@ -510,7 +566,18 @@ module.exports = function (chai, utils) {
       sendBye : function(req) {
         request = sendBye(req);
         return this;
+      },
+
+      sendCancel : function(req) {
+        request = sendCancel(req);
+        return this;
+      },
+
+      lastRequest : function() {
+
+        return request;
       }
+
     };
 
 
