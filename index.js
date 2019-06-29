@@ -8,6 +8,10 @@ var transform = require("sdp-transform");
 var fs = require("fs");
 var ffmpeg = require("@ffmpeg-installer/ffmpeg");
 var l = require("winston");
+
+var ip = require("ip");
+
+
 /*global __basedir*/
 global.__basedir = __dirname;
 
@@ -20,19 +24,22 @@ if(process.env.LOG_LEVEL) {
 
 
 
-const { exec } = require("child_process");
+const { execFile } = require("child_process");
 
 
 var dialogs = {};
 var request;
 var requestCallback;
 var playing = {};
+var mediaProcesses = {};
+var prompt0 = __basedir + "/caller.wav";
+var prompt1 = __basedir + "/callee.wav";
 
 
 function rstring() { return Math.floor(Math.random()*1e6).toString(); }
 
 
-function sendBye(req) {
+function sendBye(req,byecallback) {
   var bye = {
     method: "BYE",
     uri: req.headers.contact[0].uri,
@@ -40,7 +47,9 @@ function sendBye(req) {
       to: req.headers.to,
       from: req.headers.from,
       "call-id": req.headers["call-id"],
-      cseq: {method: "BYE", seq: req.headers.cseq.seq}
+      cseq: {method: "BYE", seq: req.headers.cseq.seq},
+      contact: [{uri: "sip:"+sipParams.userid+"@" + ip.address() + ":" + sipParams.port + ";transport="+sipParams.transport  }],
+
 
     }
   };
@@ -58,10 +67,20 @@ function sendBye(req) {
 
   l.verbose("Send BYE request",JSON.stringify(bye,null,2));
 
-  request = bye;
+  var id = [req.headers["call-id"], req.headers.from.params.tag, req.headers.to.params.tag].join(":");
 
-  sip.send(bye,function(rs) {
+
+  request = bye;
+  stopMedia(id);
+
+  l.verbose("Before Calling bye response callback...",JSON.stringify(byecallback));
+  sip.send(bye,(rs) =>  {
     l.verbose("Received bye response",JSON.stringify(rs,null,2));
+    if(byecallback) {
+      l.verbose("Calling bye response callback...",JSON.stringify(byecallback));
+      byecallback(rs);
+      l.verbose("Bye response callback called");
+    }
   });
 
 
@@ -122,11 +141,13 @@ function sendAck(rs) {
 
   };
 
+  l.debug("Headers",headers);
 
 
 
 
   var ack = makeRequest("ACK", rs.headers.contact[0].uri, headers, null, null);
+  l.debug("ACK",ack);
   ack.headers["via"] = rs.headers.via;
 
 
@@ -147,6 +168,59 @@ function sendAck(rs) {
 
 }
 
+function stopMedia(id) {
+  l.verbose("stopMedia called, id", id);
+  for(var pid of mediaProcesses[id]) {
+    try{
+      l.verbose("Stopping mediaprocess... " + pid.pid);
+      process.kill(pid.pid);
+    } catch(err) {
+      l.verbose("Error killing process",err);
+
+    }
+  }
+  delete mediaProcesses[id];
+}
+
+function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
+  l.debug("play RTP audio for",sdpMedia);
+  var ip;
+  if(sdpMedia.connection) {
+    ip = sdpMedia.connection.ip;
+  } else {
+    ip =sdpOrigin;
+  }
+
+  var gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ignore-length=1 ! audioconvert ! audioresample ! alawenc ! rtppcmapay ! udpsink host="+ip+" port="+sdpMedia.port;
+
+
+  var gstArr = gstStr.split(" ");
+  l.verbose("gstArr", JSON.stringify(gstArr));
+  //var packetSize = 172;//sdp.media[0].ptime*8;
+  //var pid =exec(ffmpeg.path + " -stream_loop -1 -re  -i "+ prompt +" -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn  -acodec pcm_alaw -f rtp rtp://" + ip + ":" + sdpMedia.port , (err, stdout, stderr) => {
+  var pid = execFile("gst-launch-1.0", gstArr, (err, stdout, stderr) => {
+
+    if (err) {
+      l.error("Could not execute ffmpeg",err);
+      return;
+    }
+    l.debug("Completed ffmpeg");
+
+    // the *entire* stdout and stderr (buffered)
+    //l.debug("stdout:",stdout);
+    //l.debug("stderr:",stderr);
+  });
+  l.verbose("RTP audio playing, pid ",pid.pid);
+  if(!mediaProcesses[dialogId]) {
+    mediaProcesses[dialogId] = [];
+  }
+  if(!pid) {
+    throw "Could not start gst-launch";
+  } else {
+    mediaProcesses[dialogId].push(pid);
+  }
+}
+
 function handle200(rs) {
   // yes we can get multiple 2xx response with different tags
   if(request.method!="INVITE") {
@@ -154,76 +228,43 @@ function handle200(rs) {
   }
   l.debug("call "+ rs.headers["call-id"] +" answered with tag " + rs.headers.to.params.tag);
 
+  request.headers.to = rs.headers.to;
+  request.uri = rs.headers.contact[0].uri;
+
+  if(rs.headers["record-route"]) {
+    request.headers["route"] = [];
+    for(var i=rs.headers["record-route"].length-1;i>=0;i--){
+      l.debug("Push invite route header",rs.headers["record-route"][i]);
+      request.headers["route"].push(rs.headers["record-route"][i]);
+
+    }
+  }
+
+
   // sending ACK
 
-  sendAck();
+  sendAck(rs);
 
+  l.debug("200 resp",JSON.stringify(rs,null,2));
 
+  var id = [rs.headers["call-id"], rs.headers.from.params.tag, rs.headers.to.params.tag].join(":");
 
   if(rs.headers["content-type"]=="application/sdp") {
-    if(playing[rs.headers["call-id"]]) {
-      l.debug("Already playing media for call " + rs.headers["call-id"]);
-      return;
-    }
-    playing[rs.headers["call-id"]] = true;
+
 
 
     var sdp = transform.parse(rs.content);
 
     l.verbose("Got SDP in 200 answer",sdp);
 
-    var packetSize = 172;//sdp.media[0].ptime*8;
 
     if(sdp.media[0].type=="audio") {
-      l.debug("play RTP audio 0");
-      var ip;
-      if(sdp.media[0].connection) {
-        ip = sdp.media[0].connection.ip;
-      } else {
-        ip =sdp.origin.address;
-      }
-
-      //exec('ffmpeg -re -f lavfi -i aevalsrc="sin(400*2*PI*t)" -ac 1 -b:a 64 -ar 8000  -acodec pcm_alaw -f rtp rtp://' + sdp.media[0].connection.ip  + ':' + sdp.media[0].port + '?pkt_size=258', (err, stdout, stderr) => {
-      exec(ffmpeg.path + " -re  -i "+__basedir+"/caller.wav -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn  -acodec pcm_alaw -f rtp rtp://" + ip + ":" + sdp.media[0].port , (err, stdout, stderr) => {
-
-        if (err) {
-          l.error("Could not execute ffmpeg",err);
-          return;
-        }
-        l.debug("Completed ffmpeg");
-
-        // the *entire* stdout and stderr (buffered)
-        l.debug("stdout:",stdout);
-        l.debug("stderr:",stderr);
-      });
-      l.verbose("RTP audio playing");
-
+      playMedia(id,sdp.media[0],sdp.origin.address,prompt0);
     }
 
     if(sdp.media.length>1) {
       if(sdp.media[1].type=="audio") {
-        l.verbose("play RTP audio 1");
-        var ip2;
-        if(sdp.media[1].connection) {
-          ip2 = sdp.media[1].connection.ip;
-        } else {
-          ip2 =sdp.origin.address;
-        }
-        //sdp.media[1].ptime*8;
-        //exec('ffmpeg -re -f lavfi -i aevalsrc="sin(400*2*PI*t)" -ac 1 -b:a 64 -ar 8000  -acodec pcm_alaw -f rtp rtp://' + sdp.media[0].connection.ip  + ':' + sdp.media[0].port + '?pkt_size=258', (err, stdout, stderr) => {
-        exec(ffmpeg.path + " -re  -i "+__basedir+"/callee.wav -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn -acodec pcm_alaw -f rtp rtp://" + ip2 + ":" + sdp.media[1].port , (err, stdout, stderr) => {
-
-          if (err) {
-            l.error("Completed ffmpeg",err);
-            return;
-          }
-          l.verbose("Running ffmpeg");
-
-          // the *entire* stdout and stderr (buffered)
-          l.debug("stdout:", stdout);
-          l.debug("stderr:", stderr);
-        });
-        l.verbose("RTP audio playing");
+        playMedia(id,sdp.media[1],sdp.origin.address,prompt1);
 
       }
 
@@ -238,7 +279,7 @@ function handle200(rs) {
 
 
 
-  var id = [rs.headers["call-id"], rs.headers.from.params.tag, rs.headers.to.params.tag].join(":");
+
 
   // registring our 'dialog' which is just function to process in-dialog requests
   if(!dialogs[id]) {
@@ -248,6 +289,7 @@ function handle200(rs) {
 
         delete dialogs[id];
         delete playing[rs["call-id"]];
+        stopMedia(id);
 
         sip.send(sip.makeResponse(rq, 200, "Ok"));
       }
@@ -286,11 +328,14 @@ function replyToDigest(request,response,callback) {
 }
 
 function gotFinalResponse(response,callback) {
+  l.verbose("Function gotFinalResponse");
   try {
-    callback(response);
+    if(callback) {
+      callback(response);
+    }
   } catch (e) {
     l.error("Error",e);
-    process.exit(1);
+    throw e;
 
   }
 }
@@ -298,20 +343,26 @@ function gotFinalResponse(response,callback) {
 
 function makeRequest(method, destination, headers, contentType, body) {
 
+  l.debug("makeRequest",method);
+
   var req = {
     method: method,
     uri: destination,
     headers: {
       to: {uri: destination + ";transport="+sipParams.transport},
       from: {uri: "sip:"+sipParams.userid+"@"+sipParams.domain+"", params: {tag: rstring()}},
-      "call-id": rstring(),
+      "call-id": rstring()+Date.now().toString(),
       cseq: {method: method, seq: Math.floor(Math.random() * 1e5)},
-      contact: [{uri: "sip:"+sipParams.userid+"@" + sipParams.domain  + ";transport="+sipParams.transport  }],
+      contact: [{uri: "sip:"+sipParams.userid+"@" + ip.address() + ":" + sipParams.port + ";transport="+sipParams.transport  }],
       //    via: createVia(),
       "max-forwards" : 70
 
     }
   };
+
+  l.debug("req",req);
+
+
 
   if(sipParams.headers) {
     if(sipParams.headers.route) {
@@ -319,6 +370,8 @@ function makeRequest(method, destination, headers, contentType, body) {
       req.headers.route=sipParams.headers.route;
     }
   }
+
+
 
   if(headers) {
 
@@ -356,6 +409,52 @@ function makeRequest(method, destination, headers, contentType, body) {
   }
 
   return req;
+
+}
+
+function sendRequest(rq,callback,provisionalCallback) {
+  l.verbose("Sending");
+  l.verbose(JSON.stringify(rq,null,2),"\n\n");
+  sip.send(rq,
+    function(rs) {
+
+      l.verbose("Got response " + rs.status + " for callid "+ rs.headers["call-id"]);
+
+      if(rs.status<200) {
+        if(provisionalCallback) {
+          l.debug("Calling provisionalCallback callback");
+          provisionalCallback(rs);
+        }
+        return;
+      }
+
+      if(rs.status==401 || rs.status==407) {
+        l.verbose("Received auth response");
+        l.verbose(JSON.stringify(rs,null,2));
+        replyToDigest(rq,rs,callback);
+
+        return;
+
+      }
+      if(rs.status >= 300) {
+        l.verbose("call failed with status " + rs.status);
+        sendAck(rs);
+        gotFinalResponse(rs,callback);
+
+        return;
+      }
+      else if(rs.status < 200) {
+        l.verbose("call progress status " + rs.status + " " + rs.reason);
+        return;
+      }
+      else {
+        l.verbose("Got final response");
+
+        handle200(rs);
+        gotFinalResponse(rs,callback);
+
+      }
+    });
 
 }
 
@@ -423,55 +522,66 @@ module.exports = function (chai, utils) {
   chai.sip = function (params){
 
     sipParams = params;
+    l.verbose("chai-sip params",params);
     sipParams.publicAddress = ip.address();
-    sip.start(sipParams, function(rq) {
-      //  console.log("Received request",rq);
+    try {
+      sip.start(sipParams, function(rq) {
+        //  console.log("Received request",rq);
 
 
-      if(requestCallback) {
+        if(requestCallback) {
+          var resp;
+          try {
+            if(rq.method=="INVITE") {
+              rq.headers.to.params.tag = rstring();
+            }
+            resp = requestCallback(rq);
+          } catch (e) {
+            l.error("Error",e);
+            throw e;
 
-        try {
-          if(rq.method=="INVITE") {
-            rq.headers.to.params.tag = rstring();
           }
-          requestCallback(rq);
-        } catch (e) {
-          l.error("Error",e);
-          process.exit(1);
+
+          if(resp=="sendNoResponse") {
+            return;
+          }
+
+          if(!resp) {
+
+            resp = sip.makeResponse(rq, 200, "OK");
+            resp.content =   "v=0\r\n"+
+            "o=- 13374 13374 IN IP4 "+sipParams.rtpAddress+"\r\n"+
+            "s=-\r\n"+
+            "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
+            "t=0 0\r\n"+
+            "m=audio "+sipParams.rtpPort+" RTP/AVP 8 101\r\n"+
+            "a=rtpmap:8 PCMA/8000\r\n"+
+            "a=rtpmap:101 telephone-event/8000\r\n"+
+            "a=fmtp:101 0-15\r\n"+
+            "a=ptime:50\r\n"+
+            "a=sendrecv\r\n";
+            resp.headers["content-type"] = "application/sdp";
+            resp.headers["contact"] = "<"+rq.uri+">";
+          }
+          sip.send(resp);
+          return;
 
         }
 
-        var resp = sip.makeResponse(rq, 200, "OK");
-        resp.content =   "v=0\r\n"+
-        "o=- 13374 13374 IN IP4 172.16.2.2\r\n"+
-        "s=-\r\n"+
-        "c=IN IP4 172.16.2.2\r\n"+
-        "t=0 0\r\n"+
-        "m=audio 16424 RTP/AVP 0 8 101\r\n"+
-        "a=rtpmap:0 PCMU/8000\r\n"+
-        "a=rtpmap:8 PCMA/8000\r\n"+
-        "a=rtpmap:101 telephone-event/8000\r\n"+
-        "a=fmtp:101 0-15\r\n"+
-        "a=ptime:30\r\n"+
-        "a=sendrecv\r\n";
-        resp.headers["content-type"] = "application/sdp";
-        resp.headers["contact"] = "<"+rq.uri+">";
-        sip.send(resp);
-        return;
+        if(rq.headers.to.params.tag) { // check if it's an in dialog request
+          var id = [rq.headers["call-id"], rq.headers.to.params.tag, rq.headers.from.params.tag].join(":");
 
-      }
-
-      if(rq.headers.to.params.tag) { // check if it's an in dialog request
-        var id = [rq.headers["call-id"], rq.headers.to.params.tag, rq.headers.from.params.tag].join(":");
-
-        if(dialogs[id])
-          dialogs[id](rq);
+          if(dialogs[id])
+            dialogs[id](rq);
+          else
+            sip.send(sip.makeResponse(rq, 481, "Call doesn't exists"));
+        }
         else
-          sip.send(sip.makeResponse(rq, 481, "Call doesn't exists"));
-      }
-      else
-        sip.send(sip.makeResponse(rq, 405, "Method not allowed"));
-    });
+          sip.send(sip.makeResponse(rq, 405, "Method not allowed"));
+      });
+    } catch (e) {
+      console.error("SIP start error " + e);
+    }
 
     return {
 
@@ -479,47 +589,7 @@ module.exports = function (chai, utils) {
 
 
       onFinalResponse : function(callback,provisionalCallback) {
-        l.verbose("Sending");
-        l.verbose(JSON.stringify(request,null,2),"\n\n");
-        sip.send(request,
-          function(rs) {
-
-            l.verbose("Got response " + rs.status + " for callid "+ rs.headers["call-id"]);
-
-            if(rs.status<200) {
-              if(provisionalCallback) {
-                l.debug("Calling provisionalCallback callback");
-                provisionalCallback(rs);
-              }
-              return;
-            }
-
-            if(rs.status==401 || rs.status==407) {
-              l.verbose("Received auth response");
-              l.verbose(JSON.stringify(rs,null,2));
-              replyToDigest(request,rs,callback);
-
-              return;
-
-            }
-            if(rs.status >= 300) {
-              l.verbose("call failed with status " + rs.status);
-              sendAck(rs);
-              gotFinalResponse(rs,callback);
-
-              return;
-            }
-            else if(rs.status < 200) {
-              l.verbose("call progress status " + rs.status + " " + rs.reason);
-              return;
-            }
-            else {
-
-              handle200(rs);
-              gotFinalResponse(rs,callback);
-
-            }
-          });
+        sendRequest(request,callback,provisionalCallback);
 
       },
       invite : function(destination,headers,contentType,body) {
@@ -528,12 +598,15 @@ module.exports = function (chai, utils) {
         body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
         request = makeRequest("INVITE",destination,headers,"application/sdp",body);
         return this;
+
+
       },
       inviteSipRec : function(destination,headers,contentType,body) {
         if(!headers) {
           headers = {};
         }
-        headers.contact = [{uri: "sip:"+sipParams.userid+"@" + sipParams.domain  + ";transport="+sipParams.transport,  params: {"+sip.src":""}}];
+        headers.contact = [{uri: "sip:"+sipParams.userid+"@" + ip.address()  + ":"+sipParams.port+";transport="+sipParams.transport,  params: {"+sip.src":""}}];
+
         headers.require = "siprec";
         headers.accept = "application/sdp, application/rs-metadata";
         if(!body) {
@@ -556,6 +629,29 @@ module.exports = function (chai, utils) {
         request = makeRequest("INVITE",destination,headers,ct,body);
         return this;
       },
+      reInvite : function (contentType,body,p0,p1,callback,provisionalCallback) {
+        if(p0) {
+          prompt0=p0;
+        }
+
+        if(p1) {
+          prompt1=p1;
+        }
+
+        request.headers.cseq.seq++;
+        if(contentType) {
+          request.headers["content-type"] = contentType;
+        }
+
+        if(body) {
+          request.content = body;
+        }
+
+        sendRequest(request,callback,provisionalCallback);
+
+
+      },
+
       message : function(destination,headers,contentType,body) {
         request = makeRequest("MESSAGE",destination,headers,contentType,body);
         return this;
@@ -563,9 +659,18 @@ module.exports = function (chai, utils) {
       waitForRequest : function(reqHandler) {
         requestCallback = reqHandler;
       },
-      sendBye : function(req) {
-        request = sendBye(req);
-        return this;
+      sendBye : function(req,byecallback) {
+        l.verbose("1. Calling bye response callback...",JSON.stringify(byecallback));
+        sendBye(req,byecallback);
+
+      },
+
+      makeResponse : function(req,statusCode,reasonPhrase) {
+        return sip.makeResponse(req, statusCode, reasonPhrase);
+      },
+
+      send: function(req) {
+        return sip.send(req);
       },
 
       sendCancel : function(req) {
@@ -576,6 +681,15 @@ module.exports = function (chai, utils) {
       lastRequest : function() {
 
         return request;
+      },
+
+      stopMedia : function(id) {
+        stopMedia(id);
+
+      },
+      stop : function() {
+        sip.stop();
+
       }
 
     };
