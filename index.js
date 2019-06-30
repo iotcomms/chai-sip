@@ -669,6 +669,11 @@ module.exports = function (chai, utils) {
         return sip.makeResponse(req, statusCode, reasonPhrase);
       },
 
+      parseUri : function(uri) {
+        return sip.parseUri(uri);
+
+      },
+
       send: function(req) {
         return sip.send(req);
       },
