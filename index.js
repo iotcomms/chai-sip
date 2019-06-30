@@ -30,6 +30,7 @@ const { execFile } = require("child_process");
 var dialogs = {};
 var request;
 var requestCallback;
+var ackCallback;
 var playing = {};
 var mediaProcesses = {};
 var prompt0 = __basedir + "/caller.wav";
@@ -532,6 +533,12 @@ module.exports = function (chai, utils) {
         if(requestCallback) {
           var resp;
           try {
+            if(rq.method=="ACK") {
+              if(ackCallback) {
+                ackCallback(rq);
+              }
+            }
+
             if(rq.method=="INVITE") {
               rq.headers.to.params.tag = rstring();
             }
@@ -659,6 +666,12 @@ module.exports = function (chai, utils) {
       waitForRequest : function(reqHandler) {
         requestCallback = reqHandler;
       },
+
+      waitForAck : function(ackHandler) {
+        ackCallback = ackHandler;
+      },
+
+
       sendBye : function(req,byecallback) {
         l.verbose("1. Calling bye response callback...",JSON.stringify(byecallback));
         sendBye(req,byecallback);
