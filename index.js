@@ -171,20 +171,22 @@ function sendAck(rs) {
 
 function stopMedia(id) {
   l.verbose("stopMedia called, id", id);
-  for(var pid of mediaProcesses[id]) {
-    try{
-      l.verbose("Stopping mediaprocess... " + pid.pid);
-      process.kill(pid.pid);
-    } catch(err) {
-      l.verbose("Error killing process",err);
+  if(mediaProcesses[id]) {
+    for(var pid of mediaProcesses[id]) {
+      try{
+        l.verbose("Stopping mediaprocess... " + pid.pid);
+        process.kill(pid.pid);
+      } catch(err) {
+        l.verbose("Error killing process",err);
 
+      }
     }
+    delete mediaProcesses[id];
   }
-  delete mediaProcesses[id];
 }
 
 function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
-  l.debug("play RTP audio for",sdpMedia);
+  l.debug("play RTP audio for",JSON.stringify(sdpMedia,null,2));
   var ip;
   if(sdpMedia.connection) {
     ip = sdpMedia.connection.ip;
@@ -192,7 +194,32 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
     ip =sdpOrigin;
   }
 
-  var gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ignore-length=1 ! audioconvert ! audioresample ! alawenc ! rtppcmapay ! udpsink host="+ip+" port="+sdpMedia.port;
+  var gstStr;
+  for(var rtpPayload of sdpMedia.rtp) {
+    if(rtpPayload.codec.toUpperCase() == "PCMA") {
+      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ! audioresample ! audioconvert ! capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! alawenc ! rtppcmapay min-ptime=20000000 max-ptime=20000000 ! udpsink host="+ip+" port="+sdpMedia.port;
+      l.debug("Will send PCMA codec");
+      break;
+    }
+
+    if(rtpPayload.codec.toUpperCase() == "PCMU") {
+      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! udpsink host="+ip+" port="+sdpMedia.port;
+      l.debug("Will send PCMU codec");
+      break;
+    }
+
+    if(rtpPayload.codec.toUpperCase() == "OPUS") {
+      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse  ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! opusenc ! rtpopuspay pt="+rtpPayload.payload+" min-ptime=20000000 max-ptime=20000000 ! udpsink host="+ip+" port="+sdpMedia.port;
+      l.debug("Will send OPUS codec");
+      break;
+    }
+
+  }
+
+  l.debug("Will send media to " + ip + ":" + sdpMedia.port);
+
+
+  //opus
 
 
   var gstArr = gstStr.split(" ");
@@ -259,18 +286,25 @@ function handle200(rs) {
     l.verbose("Got SDP in 200 answer",sdp);
 
 
-    if(sdp.media[0].type=="audio") {
-      playMedia(id,sdp.media[0],sdp.origin.address,prompt0);
-    }
+    if(!sipParams.disableMedia) {
 
-    if(sdp.media.length>1) {
-      if(sdp.media[1].type=="audio") {
-        playMedia(id,sdp.media[1],sdp.origin.address,prompt1);
+
+      if(sdp.media[0].type=="audio") {
+        playMedia(id,sdp.media[0],sdp.origin.address,prompt0);
+      }
+
+      if(sdp.media.length>1) {
+        if(sdp.media[1].type=="audio") {
+          playMedia(id,sdp.media[1],sdp.origin.address,prompt1);
+
+        }
+
 
       }
 
+    } else {
+      l.info("Media disabled");
     }
-
 
 
   }
@@ -653,6 +687,9 @@ module.exports = function (chai, utils) {
         if(body) {
           request.content = body;
         }
+
+        var id1 = [request.headers["call-id"], request.headers.from.params.tag, request.headers.to.params.tag].join(":");
+        stopMedia(id1);
 
         sendRequest(request,callback,provisionalCallback);
 
