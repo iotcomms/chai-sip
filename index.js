@@ -229,7 +229,9 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
   var pid = execFile("gst-launch-1.0", gstArr, (err, stdout, stderr) => {
 
     if (err) {
-      l.error("Could not execute ffmpeg",err);
+      if(err.signal!="SIGTERM") {
+        l.error("Could not execute ffmpeg",JSON.stringify(err),null,2);
+      }
       return;
     }
     l.debug("Completed ffmpeg");
@@ -473,7 +475,6 @@ function sendRequest(rq,callback,provisionalCallback) {
       }
       if(rs.status >= 300) {
         l.verbose("call failed with status " + rs.status);
-        sendAck(rs);
         gotFinalResponse(rs,callback);
 
         return;
@@ -509,13 +510,11 @@ module.exports = function (chai, utils) {
 
 
   utils.addMethod(chai.Assertion.prototype, "status", function (code) {
-
     var obj = utils.flag(this, "object");
-
     this.assert(
       obj.status == code
-      , "expected SIP final response to have status code #{exp} but got #{act}"
-      , "expected SIP final responseto not have status code #{act}"
+      , "expected SIP  response to have status code #{exp} but got #{act}"
+      , "expected SIP  response to not have status code #{act}"
       , code        // expected
       , obj.status  // actual
     );
