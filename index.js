@@ -229,7 +229,7 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
   var pid = execFile("gst-launch-1.0", gstArr, (err, stdout, stderr) => {
 
     if (err) {
-      if(err.signal!="SIGTERM") {
+      if(err.signal!="SIGTERM" && err.signal!="ESRCH") {
         l.error("Could not execute ffmpeg",JSON.stringify(err),null,2);
       }
       return;
