@@ -177,7 +177,9 @@ function stopMedia(id) {
         l.verbose("Stopping mediaprocess... " + pid.pid);
         process.kill(pid.pid);
       } catch(err) {
-        l.verbose("Error killing process",err);
+        if(!err.code=="ESRCH") {
+          l.verbose("Error killing process",JSON.stringify(err));
+        }
 
       }
     }
@@ -229,7 +231,7 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
   var pid = execFile("gst-launch-1.0", gstArr, (err, stdout, stderr) => {
 
     if (err) {
-      if(err.signal!="SIGTERM" && err.signal!="ESRCH") {
+      if(err.signal!="SIGTERM") {
         l.error("Could not execute ffmpeg",JSON.stringify(err),null,2);
       }
       return;
