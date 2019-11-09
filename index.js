@@ -41,6 +41,10 @@ function rstring() { return Math.floor(Math.random()*1e6).toString(); }
 
 
 function sendBye(req,byecallback) {
+  var ipAddress;
+  if(!sipParams.publicAddress) {
+    ipAddress =  ip.address();
+  }
   var bye = {
     method: "BYE",
     uri: req.headers.contact[0].uri,
@@ -49,7 +53,7 @@ function sendBye(req,byecallback) {
       from: req.headers.from,
       "call-id": req.headers["call-id"],
       cseq: {method: "BYE", seq: req.headers.cseq.seq},
-      contact: [{uri: "sip:"+sipParams.userid+"@" + ip.address() + ":" + sipParams.port + ";transport="+sipParams.transport  }],
+      contact: [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
 
 
     }
@@ -384,6 +388,11 @@ function makeRequest(method, destination, headers, contentType, body) {
 
   l.debug("makeRequest",method);
 
+  var ipAddress;
+  if(!sipParams.publicAddress) {
+    ipAddress =  ip.address();
+  }
+
   var req = {
     method: method,
     uri: destination,
@@ -392,7 +401,7 @@ function makeRequest(method, destination, headers, contentType, body) {
       from: {uri: "sip:"+sipParams.userid+"@"+sipParams.domain+"", params: {tag: rstring()}},
       "call-id": rstring()+Date.now().toString(),
       cseq: {method: method, seq: Math.floor(Math.random() * 1e5)},
-      contact: [{uri: "sip:"+sipParams.userid+"@" + ip.address() + ":" + sipParams.port + ";transport="+sipParams.transport  }],
+      contact: [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
       //    via: createVia(),
       "max-forwards" : 70
 
@@ -559,7 +568,12 @@ module.exports = function (chai, utils) {
 
     sipParams = params;
     l.verbose("chai-sip params",params);
-    sipParams.publicAddress = ip.address();
+
+    if(!sipParams.publicAddress) {
+      sipParams.publicAddress = ip.address();
+    }
+
+
     try {
       sip.start(sipParams, function(rq) {
         //  console.log("Received request",rq);
@@ -653,7 +667,14 @@ module.exports = function (chai, utils) {
         if(!headers) {
           headers = {};
         }
-        headers.contact = [{uri: "sip:"+sipParams.userid+"@" + ip.address()  + ":"+sipParams.port+";transport="+sipParams.transport,  params: {"+sip.src":""}}];
+
+        var ipAddress;
+        if(!sipParams.publicAddress) {
+          ipAddress =  ip.address();
+        }
+
+
+        headers.contact = [{uri: "sip:"+sipParams.userid+"@" + ipAddress  + ":"+sipParams.port+";transport="+sipParams.transport,  params: {"+sip.src":""}}];
 
         headers.require = "siprec";
         headers.accept = "application/sdp, application/rs-metadata";
