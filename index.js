@@ -44,6 +44,8 @@ function sendBye(req,byecallback) {
   var ipAddress;
   if(!sipParams.publicAddress) {
     ipAddress =  ip.address();
+  } else {
+    ipAddress = sipParams.publicAddress;
   }
   var bye = {
     method: "BYE",
@@ -391,6 +393,8 @@ function makeRequest(method, destination, headers, contentType, body) {
   var ipAddress;
   if(!sipParams.publicAddress) {
     ipAddress =  ip.address();
+  } else {
+    ipAddress = sipParams.publicAddress;
   }
 
   var req = {
@@ -671,6 +675,8 @@ module.exports = function (chai, utils) {
         var ipAddress;
         if(!sipParams.publicAddress) {
           ipAddress =  ip.address();
+        } else {
+          ipAddress = sipParams.publicAddress;
         }
 
 
