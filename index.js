@@ -588,9 +588,10 @@ module.exports = function (chai, utils) {
             return;
           }
 
+
           if(!resp) {
 
-            resp = sip.makeResponse(rq, 200, "OK");
+            resp = sip.makeResponse(rq,200,"OK");
             resp.content =   "v=0\r\n"+
             "o=- 13374 13374 IN IP4 "+sipParams.rtpAddress+"\r\n"+
             "s=-\r\n"+
@@ -636,9 +637,14 @@ module.exports = function (chai, utils) {
       },
       invite : function(destination,headers,contentType,body) {
 
+        if(!body) {
+          contentType = "application/sdp";
+          body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
+        }
 
-        body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
-        request = makeRequest("INVITE",destination,headers,"application/sdp",body);
+
+
+        request = makeRequest("INVITE",destination,headers,contentType,body);
         return this;
 
 
