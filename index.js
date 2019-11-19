@@ -97,7 +97,7 @@ function sendBye(req,byecallback) {
 }
 
 
-function sendCancel(req) {
+function sendCancel(req,callback) {
   var cancel = {
     method: "CANCEL",
     uri: request.uri,
@@ -128,6 +128,9 @@ function sendCancel(req) {
 
   sip.send(cancel,function(rs) {
     l.verbose("Received CANCEL response",JSON.stringify(rs,null,2));
+    if(callback) {
+      callback(rs);
+    }
   });
 
 
@@ -762,8 +765,8 @@ module.exports = function (chai, utils) {
         return sip.send(req);
       },
 
-      sendCancel : function(req) {
-        request = sendCancel(req);
+      sendCancel : function(req,callback) {
+        request = sendCancel(req,callback);
         return this;
       },
 
