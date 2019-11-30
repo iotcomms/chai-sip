@@ -47,14 +47,26 @@ function sendBye(req,byecallback) {
   } else {
     ipAddress = sipParams.publicAddress;
   }
+
+  var to;
+  var from;
+
+  if(req.method) {
+    to = req.headers.from;
+    from = req.headers.to;
+  } else {
+    to = req.headers.to;
+    from = req.headers.from;
+  }
+
   var bye = {
     method: "BYE",
     uri: req.headers.contact[0].uri,
     headers: {
-      to: req.headers.to,
-      from: req.headers.from,
+      to: to,
+      from: from,
       "call-id": req.headers["call-id"],
-      cseq: {method: "BYE", seq: req.headers.cseq.seq},
+      cseq: {method: "BYE", seq: req.headers.cseq.seq++},
       contact: [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
 
 
@@ -74,7 +86,7 @@ function sendBye(req,byecallback) {
 
   l.verbose("Send BYE request",JSON.stringify(bye,null,2));
 
-  var id = [req.headers["call-id"], req.headers.from.params.tag, req.headers.to.params.tag].join(":");
+  var id = [req.headers["call-id"], from.params.tag, to.params.tag].join(":");
 
 
   request = bye;
