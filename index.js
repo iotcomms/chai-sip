@@ -457,7 +457,7 @@ function makeRequest(method, destination, headers, contentType, body) {
 
   } else if(method=="INVITE"){
     req.content =   "v=0\r\n"+
-    "o=- 13374 13374 IN IP4 172.16.2.2\r\n"+
+    "o=- "+rstring()+" "+rstring()+" IN IP4 172.16.2.2\r\n"+
     "s=-\r\n"+
     "c=IN IP4 172.16.2.2\r\n"+
     "t=0 0\r\n"+
@@ -626,7 +626,7 @@ module.exports = function (chai, utils) {
 
             resp = sip.makeResponse(rq,200,"OK");
             resp.content =   "v=0\r\n"+
-            "o=- 13374 13374 IN IP4 "+sipParams.rtpAddress+"\r\n"+
+            "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
             "s=-\r\n"+
             "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
             "t=0 0\r\n"+
