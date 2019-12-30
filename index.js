@@ -170,7 +170,13 @@ function sendAck(rs) {
 
   var ack = makeRequest("ACK", rs.headers.contact[0].uri, headers, null, null);
   l.debug("ACK",ack);
-  ack.headers["via"] = rs.headers.via;
+  //ack.headers["via"] = rs.headers.via;
+
+  /*if(ack.headers["via"][0].params) {
+    delete ack.headers["via"][0].params.received;
+  }*/
+
+  delete ack.headers["via"] ;
 
 
 
