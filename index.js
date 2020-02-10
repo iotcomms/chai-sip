@@ -377,6 +377,10 @@ function replyToDigest(request,response,callback,provisionalCallback) {
     }
   }
 
+  delete request.headers.via;
+
+
+
   var session = {nonce: ""};
   var creds = {user:sipParams.userid,password:sipParams.password,realm:sipParams.domain, nonce:"",uri:""};
   digest.signRequest(session,request,response,creds);
