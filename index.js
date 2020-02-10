@@ -367,7 +367,7 @@ function handle200(rs) {
 
 }
 
-function replyToDigest(request,response,callback) {
+function replyToDigest(request,response,callback,provisionalCallback) {
   l.verbose("replyToDigest",request.uri);
 
   if(sipParams.headers) {
@@ -383,6 +383,11 @@ function replyToDigest(request,response,callback) {
   l.verbose("Sending request again with authorization header",JSON.stringify(request,null,2));
   sip.send(request,function(rs) {
     l.debug("Received after sending authorized request: "+rs.status);
+    if(rs.status<200) {
+      if(provisionalCallback) {
+        provisionalCallback(rs);
+      }
+    }
     if(rs.status==200){
       handle200(rs);
       gotFinalResponse(rs,callback);
@@ -504,7 +509,7 @@ function sendRequest(rq,callback,provisionalCallback) {
       if(rs.status==401 || rs.status==407) {
         l.verbose("Received auth response");
         l.verbose(JSON.stringify(rs,null,2));
-        replyToDigest(rq,rs,callback);
+        replyToDigest(rq,rs,callback,provisionalCallback);
 
         return;
 
@@ -735,6 +740,8 @@ module.exports = function (chai, utils) {
         }
 
         request.headers.cseq.seq++;
+
+        delete request.headers.via;
         if(contentType) {
           request.headers["content-type"] = contentType;
         }
