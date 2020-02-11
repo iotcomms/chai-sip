@@ -77,11 +77,19 @@ function sendBye(req,byecallback) {
 
   if(req.headers["record-route"]) {
     bye.headers["route"] = [];
-    for(var i=req.headers["record-route"].length-1;i>=0;i--){
-      l.debug("Push bye rr header",req.headers["record-route"][i]);
-      bye.headers["route"].push(req.headers["record-route"][i]);
+    if(req.method) {
+      for(let i=0;i<req.headers["record-route"].length;i++){
+        l.debug("Push bye rr header",req.headers["record-route"][i]);
+        bye.headers["route"].push(req.headers["record-route"][i]);
+      }
+    } else {
+      for(let i=req.headers["record-route"].length-1;i>=0;i--){
+        l.debug("Push bye rr header",req.headers["record-route"][i]);
+        bye.headers["route"].push(req.headers["record-route"][i]);
+      }
 
     }
+
   }
 
   l.verbose("Send BYE request",JSON.stringify(bye,null,2));
@@ -91,12 +99,11 @@ function sendBye(req,byecallback) {
 
   request = bye;
   stopMedia(id);
+  l.verbose("after stopmedia");
 
-  l.verbose("Before Calling bye response callback...",JSON.stringify(byecallback));
   sip.send(bye,(rs) =>  {
     l.verbose("Received bye response",JSON.stringify(rs,null,2));
     if(byecallback) {
-      l.verbose("Calling bye response callback...",JSON.stringify(byecallback));
       byecallback(rs);
       l.verbose("Bye response callback called");
     }
@@ -778,7 +785,9 @@ module.exports = function (chai, utils) {
 
 
       sendBye : function(req,byecallback) {
-        l.verbose("1. Calling bye response callback...",JSON.stringify(byecallback));
+        if(byecallback) {
+          l.verbose("chai-sip: sendBye, byecallback",JSON.stringify(byecallback));
+        }
         sendBye(req,byecallback);
 
       },
