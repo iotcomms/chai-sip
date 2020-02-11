@@ -683,19 +683,21 @@ module.exports = function (chai, utils) {
         sendRequest(request,callback,provisionalCallback);
 
       },
-      invite : function(destination,headers,contentType,body) {
+      register : function(destination,user,headers,callback,provisionalCallback) {
+        request = makeRequest("REGISTER","sip:"+destination+";transport="+sipParams.transport,headers,null,null);
+        let uri = "sip:"+user+"@"+destination;
+        request.headers.from= {uri:uri,params:{tag:rstring()}};
+        request.headers.to= {uri:uri};
+        sendRequest(request,callback,provisionalCallback);
+      },
 
+      invite : function(destination,headers,contentType,body) {
         if(!body) {
           contentType = "application/sdp";
           body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
         }
-
-
-
         request = makeRequest("INVITE",destination,headers,contentType,body);
         return this;
-
-
       },
       inviteSipRec : function(destination,headers,contentType,body) {
         if(!headers) {
@@ -793,6 +795,8 @@ module.exports = function (chai, utils) {
       send: function(req) {
         return sip.send(req);
       },
+
+
 
       sendCancel : function(req,callback) {
         request = sendCancel(req,callback);
