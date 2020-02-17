@@ -6,7 +6,6 @@ var digest = require("sip/digest");
 var ip = require("ip");
 var transform = require("sdp-transform");
 var fs = require("fs");
-var ffmpeg = require("@ffmpeg-installer/ffmpeg");
 var l = require("winston");
 
 var ip = require("ip");
@@ -696,6 +695,16 @@ module.exports = function (chai, utils) {
         request.headers.from= {uri:uri,params:{tag:rstring()}};
         request.headers.to= {uri:uri};
         sendRequest(request,callback,provisionalCallback);
+      },
+
+
+      options : function(destination,headers=null,contentType=null,body=null) {
+        if(!body) {
+          contentType = "application/sdp";
+          body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
+        }
+        request = makeRequest("OPTIONS",destination,headers,contentType,body);
+        return this;
       },
 
       invite : function(destination,headers,contentType,body) {
