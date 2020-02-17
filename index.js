@@ -699,10 +699,6 @@ module.exports = function (chai, utils) {
 
 
       options : function(destination,headers=null,contentType=null,body=null) {
-        if(!body) {
-          contentType = "application/sdp";
-          body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
-        }
         request = makeRequest("OPTIONS",destination,headers,contentType,body);
         return this;
       },
