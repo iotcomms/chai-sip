@@ -403,6 +403,7 @@ function replyToDigest(request,response,callback,provisionalCallback) {
       gotFinalResponse(rs,callback);
     } else if (rs.status>200){
       gotFinalResponse(rs,callback);
+      sendAck(rs);
     }
   }
   );
@@ -526,6 +527,9 @@ function sendRequest(rq,callback,provisionalCallback) {
       }
       if(rs.status >= 300) {
         l.verbose("call failed with status " + rs.status);
+        if(rq.method=="INVITE") {
+          sendAck(rs);
+        }
         gotFinalResponse(rs,callback);
 
         return;

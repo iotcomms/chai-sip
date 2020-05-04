@@ -47,7 +47,6 @@ Content-Disposition: recording-session
     <stream stream_id="JaPQeP1CEeSA8KsYHx7YVg==" session_id="JaPQeP1CEeSA66sYHx7YVg==">
       <label>1</label>
     </stream>
-
     <participant participant_id="JaPQeP1CEeSA8qsYHx7YVg==">
         <nameID aor="sip:909909@9.0.0.174">
             <name xml:lang="en">909909</name>
@@ -59,7 +58,6 @@ Content-Disposition: recording-session
     <stream stream_id="JaPQeP1CEeSA86sYHx7YVg==" session_id="JaPQeP1CEeSA66sYHx7YVg==">
       <label>2</label>
     </stream>
-
     <participantstreamassoc participant_id="JaPQeP1CEeSA76sYHx7YVg==">
         <send>JaPQeP1CEeSA8KsYHx7YVg==</send>
         <recv>JaPQeP1CEeSA86sYHx7YVg==</recv>
