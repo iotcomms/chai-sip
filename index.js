@@ -7,9 +7,7 @@ var ip = require("ip");
 var transform = require("sdp-transform");
 var fs = require("fs");
 var l = require("winston");
-
-var ip = require("ip");
-
+var util = require("util");
 
 /*global __basedir*/
 global.__basedir = __dirname;
@@ -34,9 +32,22 @@ var playing = {};
 var mediaProcesses = {};
 var prompt0 = __basedir + "/caller.wav";
 var prompt1 = __basedir + "/callee.wav";
+var mediatool;
+var mediaclient;
 
 
 function rstring() { return Math.floor(Math.random()*1e6).toString(); }
+
+if(process.env.useMediatool) {
+  var Mediatool = require("mediatool");
+  mediatool = new Mediatool();
+  mediatool.on("serverStarted", () => {
+    l.info("mediatool started");
+  });
+
+  mediatool.start();
+
+}
 
 
 function sendBye(req,byecallback) {
@@ -203,24 +214,38 @@ function sendAck(rs) {
 }
 
 function stopMedia(id) {
-  l.verbose("stopMedia called, id", id);
-  if(mediaProcesses[id]) {
-    for(var pid of mediaProcesses[id]) {
-      try{
-        l.verbose("Stopping mediaprocess... " + pid.pid);
-        process.kill(pid.pid);
-      } catch(err) {
-        if(!err.code=="ESRCH") {
-          l.verbose("Error killing process",JSON.stringify(err));
-        }
 
+
+  l.verbose("stopMedia called, id", id);
+
+  if(process.env.useMediatool) {
+    mediaclient.stop();
+
+  } else {
+    if(mediaProcesses[id]) {
+      for(var pid of mediaProcesses[id]) {
+        try{
+          l.verbose("Stopping mediaprocess... " + pid.pid);
+          process.kill(pid.pid);
+        } catch(err) {
+          if(!err.code=="ESRCH") {
+            l.verbose("Error killing process",JSON.stringify(err));
+          }
+
+        }
       }
+      delete mediaProcesses[id];
     }
-    delete mediaProcesses[id];
   }
 }
 
-function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
+function listenMedia() {
+
+
+}
+
+function playGstMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
+
   l.debug("play RTP audio for",JSON.stringify(sdpMedia,null,2));
   var ip;
   if(sdpMedia.connection) {
@@ -232,19 +257,19 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
   var gstStr;
   for(var rtpPayload of sdpMedia.rtp) {
     if(rtpPayload.codec.toUpperCase() == "PCMA") {
-      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ! audioresample ! audioconvert ! capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! alawenc ! rtppcmapay min-ptime=20000000 max-ptime=20000000 ! udpsink host="+ip+" port="+sdpMedia.port;
+      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! alawenc ! rtppcmapay min-ptime=20000000 max-ptime=20000000 ! capsfilter caps=\"application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host="+ip+" port="+sdpMedia.port;
       l.debug("Will send PCMA codec");
       break;
     }
 
     if(rtpPayload.codec.toUpperCase() == "PCMU") {
-      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! udpsink host="+ip+" port="+sdpMedia.port;
+      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! capsfilter caps=\"application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000\" ! udpsink host="+ip+" port="+sdpMedia.port;
       l.debug("Will send PCMU codec");
       break;
     }
 
     if(rtpPayload.codec.toUpperCase() == "OPUS") {
-      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse  ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! opusenc ! rtpopuspay pt="+rtpPayload.payload+" min-ptime=20000000 max-ptime=20000000 ! udpsink host="+ip+" port="+sdpMedia.port;
+      gstStr = "-m multifilesrc location="+prompt+" loop=1 ! wavparse ignore-length=1  ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! opusenc ! rtpopuspay pt="+rtpPayload.payload+" min-ptime=20000000 max-ptime=20000000 ! udpsink host="+ip+" port="+sdpMedia.port;
       l.debug("Will send OPUS codec");
       break;
     }
@@ -261,7 +286,7 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
   l.verbose("gstArr", JSON.stringify(gstArr));
   //var packetSize = 172;//sdp.media[0].ptime*8;
   //var pid =exec(ffmpeg.path + " -stream_loop -1 -re  -i "+ prompt +" -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn  -acodec pcm_alaw -f rtp rtp://" + ip + ":" + sdpMedia.port , (err, stdout, stderr) => {
-  var pid = execFile("gst-launch-1.0", gstArr, (err, stdout, stderr) => {
+  var pid = execFile("gst-launch-1.0", gstArr, (err) => {
 
     if (err) {
       if(err.signal!="SIGTERM") {
@@ -284,9 +309,71 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
   } else {
     mediaProcesses[dialogId].push(pid);
   }
+
+
 }
 
-function handle200(rs) {
+function sendDTMF(digit) {
+  if(mediaclient) {
+    //console.log(mediaclient);
+    mediaclient.sendDTMF(digit);
+  } else {
+    l.error("chai-sip is not configured with mediatool medi component. This is not implemented without it.")
+  }
+}
+
+function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
+  if(process.env.useMediatool) {
+
+    var ip;
+    if(sdpMedia.connection) {
+      ip = sdpMedia.connection.ip;
+    } else {
+      ip =sdpOrigin;
+    }
+
+    var msparams = {pipeline:"dtmfclient",dialogId: dialogId, remoteIp:ip, remotePort: sdpMedia.port, prompt:prompt};
+    mediatool.createPipeline(msparams,(client,port) => {
+   
+
+
+      client.on("pipelineStarted",()=>{
+        l.verbose("IVR pipelineStarted");
+      });
+
+      client.on("error",(err)=>{
+        l.error("IVR error",err);
+      });
+
+
+      client.on("stopped",(params) => {
+        l.verbose("IVR mediatool stopped", JSON.stringify(params));
+      });
+
+      client.on("rtpTimeout", (params) =>  {
+        l.verbose("Got rtpTimout event for ",params,", will stop IVR with timeoutreason");
+      });
+
+
+      client.on("promptPlayed",(params) => {
+        l.verbose("Prompt playout complete", JSON.stringify(params));
+      });
+
+      mediaclient = client;
+
+      mediaclient.start();
+
+    });
+
+  
+  
+  
+  } else {
+    playGstMedia(dialogId,sdpMedia,sdpOrigin,prompt);
+  }
+}
+
+function handle200(rs,disableMedia=false) {
   // yes we can get multiple 2xx response with different tags
   if(request.method!="INVITE") {
     return;
@@ -321,9 +408,10 @@ function handle200(rs) {
     var sdp = transform.parse(rs.content);
 
     l.verbose("Got SDP in 200 answer",sdp);
+    l.verbose("Disablemedia:",disableMedia);
 
 
-    if(!sipParams.disableMedia) {
+    if(!(sipParams.disableMedia || disableMedia)) {
 
 
       if(sdp.media[0].type=="audio") {
@@ -403,7 +491,7 @@ function replyToDigest(request,response,callback,provisionalCallback) {
       gotFinalResponse(rs,callback);
     } else if (rs.status>200){
       gotFinalResponse(rs,callback);
-      sendAck(rs);
+      //sendAck(rs);
     }
   }
   );
@@ -478,17 +566,17 @@ function makeRequest(method, destination, headers, contentType, body) {
 
 
   } else if(method=="INVITE"){
+
+
+
     req.content =   "v=0\r\n"+
-    "o=- "+rstring()+" "+rstring()+" IN IP4 172.16.2.2\r\n"+
+    "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
     "s=-\r\n"+
-    "c=IN IP4 172.16.2.2\r\n"+
+    "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
     "t=0 0\r\n"+
-    "m=audio 16424 RTP/AVP 0 8 101\r\n"+
-    "a=rtpmap:0 PCMU/8000\r\n"+
-    "a=rtpmap:8 PCMA/8000\r\n"+
-    "a=rtpmap:101 telephone-event/8000\r\n"+
-    "a=fmtp:101 0-15\r\n"+
-    "a=ptime:30\r\n"+
+    "m=audio "+sipParams.rtpPort+" RTP/AVP 8\r\n"+
+    "a=rtpmap:0 PCMA/8000\r\n"+
+    "a=ptime:20\r\n"+
     "a=sendrecv\r\n";
     req.headers["content-type"] = "application/sdp";
   }
@@ -501,7 +589,7 @@ function makeRequest(method, destination, headers, contentType, body) {
 
 }
 
-function sendRequest(rq,callback,provisionalCallback) {
+function sendRequest(rq,callback,provisionalCallback,disableMedia=false) {
   l.verbose("Sending");
   l.verbose(JSON.stringify(rq,null,2),"\n\n");
   sip.send(rq,
@@ -528,7 +616,7 @@ function sendRequest(rq,callback,provisionalCallback) {
       if(rs.status >= 300) {
         l.verbose("call failed with status " + rs.status);
         if(rq.method=="INVITE") {
-          sendAck(rs);
+          //sendAck(rs);
         }
         gotFinalResponse(rs,callback);
 
@@ -541,7 +629,7 @@ function sendRequest(rq,callback,provisionalCallback) {
       else {
         l.verbose("Got final response");
 
-        handle200(rs);
+        handle200(rs,disableMedia);
         gotFinalResponse(rs,callback);
 
       }
@@ -611,6 +699,11 @@ module.exports = function (chai, utils) {
   chai.sip = function (params){
 
     sipParams = params;
+    sipParams.logger = {
+      send: function(message) { l.debug("SND\n" + util.inspect(message, false, null)); },
+      recv: function(message) { l.debug("RCV\n" + util.inspect(message, false, null)); },
+      error: function(message) { l.error("ERR\n" + util.inspect(message, false, null)); }
+    };
     l.verbose("chai-sip params",params);
 
     if(!sipParams.publicAddress) {
@@ -620,9 +713,7 @@ module.exports = function (chai, utils) {
 
     try {
       sip.start(sipParams, function(rq) {
-        //  console.log("Received request",rq);
-
-
+        console.log("Received request",rq);
         if(requestCallback) {
           var resp;
           try {
@@ -655,11 +746,9 @@ module.exports = function (chai, utils) {
             "s=-\r\n"+
             "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
             "t=0 0\r\n"+
-            "m=audio "+sipParams.rtpPort+" RTP/AVP 8 101\r\n"+
-            "a=rtpmap:8 PCMA/8000\r\n"+
-            "a=rtpmap:101 telephone-event/8000\r\n"+
-            "a=fmtp:101 0-15\r\n"+
-            "a=ptime:50\r\n"+
+            "m=audio "+sipParams.rtpPort+" RTP/AVP 0\r\n"+
+            "a=rtpmap:0 PCMU/8000\r\n"+
+            "a=ptime:20\r\n"+
             "a=sendrecv\r\n";
             resp.headers["content-type"] = "application/sdp";
             resp.headers["contact"] = "<"+rq.uri+">";
@@ -708,11 +797,14 @@ module.exports = function (chai, utils) {
       },
 
       invite : function(destination,headers,contentType,body) {
-        if(!body) {
+        /*if(!body) {
           contentType = "application/sdp";
           body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
-        }
+        }*/
         request = makeRequest("INVITE",destination,headers,contentType,body);
+        if(sipParams.playRtp) {
+          listenMedia();
+        }
         return this;
       },
       inviteSipRec : function(destination,headers,contentType,body) {
@@ -752,7 +844,7 @@ module.exports = function (chai, utils) {
         request = makeRequest("INVITE",destination,headers,ct,body);
         return this;
       },
-      reInvite : function (contentType,body,p0,p1,callback,provisionalCallback) {
+      reInvite : function (contentType,body,p0,p1,callback,provisionalCallback,disableMedia=false) {
         if(p0) {
           prompt0=p0;
         }
@@ -775,7 +867,7 @@ module.exports = function (chai, utils) {
         var id1 = [request.headers["call-id"], request.headers.from.params.tag, request.headers.to.params.tag].join(":");
         stopMedia(id1);
 
-        sendRequest(request,callback,provisionalCallback);
+        sendRequest(request,callback,provisionalCallback,disableMedia);
 
 
       },
@@ -827,11 +919,31 @@ module.exports = function (chai, utils) {
       },
 
       stopMedia : function(id) {
-        stopMedia(id);
+        if(mediatool) {
+          mediatool.stop();
+        }
 
       },
+
+      terminate : function(id) {
+        if(mediatool) {
+          mediatool.stop();
+        }
+      },
+
       stop : function() {
+        if(mediatool) {
+          mediatool.stop();
+        }
+
         sip.stop();
+
+      },
+
+   
+
+      sendDTMF : function(digit) {
+        sendDTMF(digit);
 
       }
 
