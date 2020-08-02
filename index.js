@@ -33,7 +33,8 @@ var mediaProcesses = {};
 var prompt0 = __basedir + "/caller.wav";
 var prompt1 = __basedir + "/callee.wav";
 var mediatool;
-var mediaclient;
+var mediaclient = {};
+var currentMediaclient;
 
 
 function rstring() { return Math.floor(Math.random()*1e6).toString(); }
@@ -46,6 +47,7 @@ if(process.env.useMediatool) {
   });
 
   mediatool.start();
+  l.info("chai-sip started mediatool");
 
 }
 
@@ -219,7 +221,12 @@ function stopMedia(id) {
   l.verbose("stopMedia called, id", id);
 
   if(process.env.useMediatool) {
-    mediaclient.stop();
+    if(mediaclient[id]) {
+      mediaclient[id].stop();
+    } else {
+      console.log("No matchin mediaclient, have these:",mediaclient);
+    }
+  
 
   } else {
     if(mediaProcesses[id]) {
@@ -314,9 +321,9 @@ function playGstMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
 }
 
 function sendDTMF(digit) {
-  if(mediaclient) {
+  if(currentMediaclient) {
     //console.log(mediaclient);
-    mediaclient.sendDTMF(digit);
+    currentMediaclient.sendDTMF(digit);
   } else {
     l.error("chai-sip is not configured with mediatool medi component. This is not implemented without it.")
   }
@@ -347,7 +354,7 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
 
 
       client.on("stopped",(params) => {
-        l.verbose("IVR mediatool stopped", JSON.stringify(params));
+        l.verbose("IVR mediatool client stopped", JSON.stringify(params));
       });
 
       client.on("rtpTimeout", (params) =>  {
@@ -359,9 +366,10 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
         l.verbose("Prompt playout complete", JSON.stringify(params));
       });
 
-      mediaclient = client;
+      mediaclient[dialogId] = client;
+      currentMediaclient = client;
 
-      mediaclient.start();
+      mediaclient[dialogId].start();
 
     });
 
@@ -589,6 +597,31 @@ function makeRequest(method, destination, headers, contentType, body) {
 
 }
 
+function playIncomingReqMedia(rq) {
+  var sdp = transform.parse(rq.content);
+  if(!(sipParams.disableMedia)) {
+    var id = [rq.headers["call-id"], rq.headers.from.params.tag, rq.headers.to.params.tag].join(":");
+
+
+    if(sdp.media[0].type=="audio") {
+      playMedia(id,sdp.media[0],sdp.origin.address,prompt0);
+    }
+
+    if(sdp.media.length>1) {
+      if(sdp.media[1].type=="audio") {
+        playMedia(id,sdp.media[1],sdp.origin.address,prompt1);
+
+      }
+
+
+    }
+
+  } else {
+    l.info("Media disabled");
+  }
+
+}
+
 function sendRequest(rq,callback,provisionalCallback,disableMedia=false) {
   l.verbose("Sending");
   l.verbose(JSON.stringify(rq,null,2),"\n\n");
@@ -694,6 +727,13 @@ module.exports = function (chai, utils) {
     new chai.Assertion(val).to.be.method(exp);
   };
 
+  chai.terminateMediatool = function() {
+    if(mediatool) {
+      mediatool.stop();
+    }
+  };
+
+
 
 
   chai.sip = function (params){
@@ -721,12 +761,17 @@ module.exports = function (chai, utils) {
               if(ackCallback) {
                 ackCallback(rq);
               }
+
+              if(rq.content) {
+                playIncomingReqMedia(rq);
+              }
             }
 
+            
+            resp = requestCallback(rq);
             if(rq.method=="INVITE") {
               rq.headers.to.params.tag = rstring();
             }
-            resp = requestCallback(rq);
           } catch (e) {
             l.error("Error",e);
             throw e;
@@ -754,6 +799,11 @@ module.exports = function (chai, utils) {
             resp.headers["contact"] = "<"+rq.uri+">";
           }
           sip.send(resp);
+
+          //Media for incoming request
+          if(rq.content) {
+            playIncomingReqMedia(rq);
+          }
           return;
 
         }
@@ -863,7 +913,7 @@ module.exports = function (chai, utils) {
         if(body) {
           request.content = body;
         }
-
+       
         var id1 = [request.headers["call-id"], request.headers.from.params.tag, request.headers.to.params.tag].join(":");
         stopMedia(id1);
 
@@ -919,22 +969,18 @@ module.exports = function (chai, utils) {
       },
 
       stopMedia : function(id) {
-        if(mediatool) {
-          mediatool.stop();
+        if(mediaclient) {
+          mediaclient[id].stop();
         }
 
       },
 
-      terminate : function(id) {
-        if(mediatool) {
-          mediatool.stop();
-        }
-      },
+  
 
       stop : function() {
-        if(mediatool) {
-          mediatool.stop();
-        }
+        /*if(mediaclient) {
+          mediaclient.stop();
+        }*/
 
         sip.stop();
 
