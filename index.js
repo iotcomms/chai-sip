@@ -224,7 +224,7 @@ function stopMedia(id) {
     if(mediaclient[id]) {
       mediaclient[id].stop();
     } else {
-      console.log("No matchin mediaclient, have these:",mediaclient);
+      l.warn("No matching mediaclient, have these:",mediaclient);
     }
   
 
@@ -322,10 +322,9 @@ function playGstMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
 
 function sendDTMF(digit) {
   if(currentMediaclient) {
-    //console.log(mediaclient);
     currentMediaclient.sendDTMF(digit);
   } else {
-    l.error("chai-sip is not configured with mediatool medi component. This is not implemented without it.")
+    l.error("chai-sip is not configured with mediatool media component. This is not implemented without it.");
   }
 }
 
@@ -340,7 +339,7 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
     }
 
     var msparams = {pipeline:"dtmfclient",dialogId: dialogId, remoteIp:ip, remotePort: sdpMedia.port, prompt:prompt};
-    mediatool.createPipeline(msparams,(client,port) => {
+    mediatool.createPipeline(msparams,(client) => {
    
 
 
@@ -753,7 +752,7 @@ module.exports = function (chai, utils) {
 
     try {
       sip.start(sipParams, function(rq) {
-        console.log("Received request",rq);
+        l.debug("Received request",rq);
         if(requestCallback) {
           var resp;
           try {
