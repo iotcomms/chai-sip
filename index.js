@@ -36,6 +36,10 @@ var mediatool;
 var mediaclient = {};
 var currentMediaclient;
 var lastMediaId;
+var remoteUri;
+
+
+
 
 
 function rstring() { return Math.floor(Math.random()*1e6).toString(); }
@@ -188,7 +192,7 @@ function sendAck(rs) {
 
 
 
-  var ack = makeRequest("ACK", rs.headers.contact[0].uri, headers, null, null);
+  var ack = makeRequest("ACK", remoteUri, headers, null, null);
   l.debug("ACK",ack);
   //ack.headers["via"] = rs.headers.via;
 
@@ -208,6 +212,18 @@ function sendAck(rs) {
 
     }
   }
+
+  var ipAddress;
+  if(!sipParams.publicAddress) {
+    ipAddress =  ip.address();
+  } else {
+    ipAddress = sipParams.publicAddress;
+  }
+
+
+  
+  ack.headers.contact =  [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
+
 
   l.verbose("Send ACK reply",JSON.stringify(ack,null,2));
 
@@ -401,6 +417,8 @@ function handle200(rs,disableMedia=false) {
 
     }
   }
+
+  remoteUri = rs.headers.contact[0].uri;
 
 
   // sending ACK
@@ -682,6 +700,8 @@ var sipParams = {};
 
 
 
+
+
 module.exports = function (chai, utils) {
 
   var  assert = chai.assert;
@@ -773,6 +793,7 @@ module.exports = function (chai, utils) {
             resp = requestCallback(rq);
             if(rq.method=="INVITE") {
               rq.headers.to.params.tag = rstring();
+             
             }
           } catch (e) {
             l.error("Error",e);
@@ -787,6 +808,13 @@ module.exports = function (chai, utils) {
 
           if(!resp) {
 
+            var ipAddress;
+            if(!sipParams.publicAddress) {
+              ipAddress =  ip.address();
+            } else {
+              ipAddress = sipParams.publicAddress;
+            }
+
             resp = sip.makeResponse(rq,200,"OK");
             resp.content =   "v=0\r\n"+
             "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
@@ -798,8 +826,13 @@ module.exports = function (chai, utils) {
             "a=ptime:20\r\n"+
             "a=sendrecv\r\n";
             resp.headers["content-type"] = "application/sdp";
-            resp.headers["contact"] = "<"+rq.uri+">";
+            resp.headers["contact"] = [{uri: "sip:"+sipParams.userid+"@" + ipAddress  + ":"+sipParams.port+";transport="+sipParams.transport}];
+            resp.headers["record-route"] = rq.headers["record-route"];
+            remoteUri = resp.headers["contact"];
+
+
           }
+          
           sip.send(resp);
 
           //Media for incoming request
@@ -870,6 +903,8 @@ module.exports = function (chai, utils) {
         } else {
           ipAddress = sipParams.publicAddress;
         }
+
+       
 
 
         headers.contact = [{uri: "sip:"+sipParams.userid+"@" + ipAddress  + ":"+sipParams.port+";transport="+sipParams.transport,  params: {"+sip.src":""}}];
