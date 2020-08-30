@@ -881,6 +881,10 @@ module.exports = function (chai, utils) {
         return this;
       },
 
+      playIncomingReqMedia : function(rq) {
+        playIncomingReqMedia(rq);
+      },
+
       invite : function(destination,headers,contentType,body) {
         /*if(!body) {
           contentType = "application/sdp";
@@ -892,6 +896,8 @@ module.exports = function (chai, utils) {
         }
         return this;
       },
+
+
       inviteSipRec : function(destination,headers,contentType,body) {
         if(!headers) {
           headers = {};
