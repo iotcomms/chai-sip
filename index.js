@@ -37,6 +37,10 @@ var mediaclient = {};
 var currentMediaclient;
 var lastMediaId;
 var remoteUri;
+var sessionExpires;
+var reInviteDisabled;
+var expirationTimers = {};
+
 
 
 
@@ -111,7 +115,7 @@ function sendBye(req,byecallback) {
 
   l.verbose("Send BYE request",JSON.stringify(bye,null,2));
 
-  var id = [req.headers["call-id"], from.params.tag, to.params.tag].join(":");
+  var id = [req.headers["call-id"]].join(":");
 
 
   request = bye;
@@ -235,11 +239,12 @@ function sendAck(rs) {
 function stopMedia(id) {
 
 
-  l.verbose("stopMedia called, id", id);
+  l.info("stopMedia called, id", id);
 
   if(process.env.useMediatool) {
     if(mediaclient[id]) {
       mediaclient[id].stop();
+      delete mediaclient[id];
     } else {
       l.warn("No matching mediaclient, have these:",mediaclient);
     }
@@ -270,7 +275,7 @@ function listenMedia() {
 
 function playGstMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
 
-  l.debug("play RTP audio for",JSON.stringify(sdpMedia,null,2));
+  l.info("media: play GST RTP audio for",JSON.stringify(sdpMedia,null,2));
   var ip;
   if(sdpMedia.connection) {
     ip = sdpMedia.connection.ip;
@@ -348,7 +353,13 @@ function sendDTMF(digit) {
 }
 
 function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
+
+  if(mediaclient[dialogId]) {
+    l.info("Media already playing");
+    return;
+  }
   if(process.env.useMediatool) {
+    l.info("playMedia called, using mediatool",dialogId);
 
     var ip;
     if(sdpMedia.connection) {
@@ -426,8 +437,10 @@ function handle200(rs,disableMedia=false) {
   sendAck(rs);
 
   l.debug("200 resp",JSON.stringify(rs,null,2));
+  
 
-  var id = [rs.headers["call-id"], rs.headers.from.params.tag, rs.headers.to.params.tag].join(":");
+  var id = [rs.headers["call-id"]].join(":");
+  l.info("200 response for ",id);
 
   if(rs.headers["content-type"]=="application/sdp") {
 
@@ -440,6 +453,8 @@ function handle200(rs,disableMedia=false) {
 
 
     if(!(sipParams.disableMedia || disableMedia)) {
+
+      l.info("media: 200 response playMedia for ",id);
 
 
       if(sdp.media[0].type=="audio") {
@@ -565,7 +580,7 @@ function makeRequest(method, destination, headers, contentType, body) {
     }
   };
 
-  l.debug("req",req);
+  l.debug("req",JSON.stringify(req));
 
 
 
@@ -595,7 +610,13 @@ function makeRequest(method, destination, headers, contentType, body) {
 
   } else if(method=="INVITE"){
 
+    if(!sipParams.rtpAddress) {
+      sipParams.rtpAddress = ip.address();
+    }
 
+    if(!sipParams.rtpPort) {
+      sipParams.rtpPort = 30000;
+    }
 
     req.content =   "v=0\r\n"+
     "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
@@ -610,7 +631,7 @@ function makeRequest(method, destination, headers, contentType, body) {
   }
 
   for(var key in headers) {
-    req[key] = headers[key];
+    req.headers[key] = headers[key];
   }
 
   return req;
@@ -618,9 +639,13 @@ function makeRequest(method, destination, headers, contentType, body) {
 }
 
 function playIncomingReqMedia(rq) {
+  if(!rq.content)
+    return;
   var sdp = transform.parse(rq.content);
-  if(!(sipParams.disableMedia)) {
-    var id = [rq.headers["call-id"], rq.headers.from.params.tag, rq.headers.to.params.tag].join(":");
+  if(sdp && !(sipParams.disableMedia)) {
+    var id = [rq.headers["call-id"]].join(":");
+
+    l.info("media: playIncomingReqMedia for ",rq.method,id);
 
 
     if(sdp.media[0].type=="audio") {
@@ -642,7 +667,33 @@ function playIncomingReqMedia(rq) {
 
 }
 
+function startSessionRefresher(rq,callId,lastSeq) {
+  l.verbose("startSessionRefresher");
+  if(!reInviteDisabled) {
+    expirationTimers[callId] = setTimeout( ()=>{
+      l.verbose("lastSeq",lastSeq);
+      var nextSeq = lastSeq+1;
+      l.verbose("nextSeq",nextSeq);
+      let rqCopy = sip.copyMessage(rq);
+      delete rqCopy.headers.via;
+      rqCopy.headers.cseq.seq = nextSeq;
+      sip.send(rqCopy,(rs)=>{
+        if(rs.status==200) {
+          startSessionRefresher(rqCopy,callId,nextSeq);
+          sendAck(rs);
+        }
+      });
+
+    },sessionExpires*1000/2);
+  }
+}
+
 function sendRequest(rq,callback,provisionalCallback,disableMedia=false) {
+  if(sessionExpires) {
+    rq.headers["session-expires"] = sessionExpires + ";refresher=uac";
+    rq.headers.supported = "timer";
+  }
+  
   l.verbose("Sending");
   l.verbose(JSON.stringify(rq,null,2),"\n\n");
   sip.send(rq,
@@ -681,6 +732,12 @@ function sendRequest(rq,callback,provisionalCallback,disableMedia=false) {
       }
       else {
         l.verbose("Got final response");
+        if(sessionExpires) {
+          let rqCopy = sip.copyMessage(rq);
+          rqCopy.headers.cseq = rs.headers.cseq;
+          rqCopy.headers.to = rs.headers.to;
+          startSessionRefresher(rqCopy,rs.headers["call-id"],rs.headers.cseq.seq);
+        }
 
         handle200(rs,disableMedia);
         gotFinalResponse(rs,callback);
@@ -705,6 +762,7 @@ var sipParams = {};
 module.exports = function (chai, utils) {
 
   var  assert = chai.assert;
+ 
 
 
   utils.addMethod(chai.Assertion.prototype, "status", function (code) {
@@ -766,7 +824,7 @@ module.exports = function (chai, utils) {
       recv: function(message) { l.debug("RCV\n" + util.inspect(message, false, null)); },
       error: function(message) { l.error("ERR\n" + util.inspect(message, false, null)); }
     };
-    l.verbose("chai-sip params",params);
+    l.debug("chai-sip params",params);
 
     if(!sipParams.publicAddress) {
       sipParams.publicAddress = ip.address();
@@ -776,6 +834,20 @@ module.exports = function (chai, utils) {
     try {
       sip.start(sipParams, function(rq) {
         l.debug("Received request",rq);
+
+        if(rq.method=="BYE" && expirationTimers[rq.headers["call-id"]]) {
+          l.verbose("Will clear session expiration timer.");
+          clearTimeout(expirationTimers[rq.headers["call-id"]]);
+          delete expirationTimers[rq.headers["call-id"]];
+        }
+
+
+        if(rq.method=="INVITE" && rq.headers.to.params.tag) {
+          l.info("*Got reinvite");
+          let id1 = rq.headers["call-id"];
+          stopMedia(id1);
+          l.info("after stopmedia");
+        }
         if(requestCallback) {
           var resp;
           try {
@@ -785,7 +857,7 @@ module.exports = function (chai, utils) {
               }
 
               if(rq.content) {
-                playIncomingReqMedia(rq);
+                //playIncomingReqMedia(rq);
               }
             }
 
@@ -836,7 +908,7 @@ module.exports = function (chai, utils) {
           sip.send(resp);
 
           //Media for incoming request
-          if(rq.content && resp.status==200) {
+          if(rq.content && (resp.status==200|| rq.method=="ACK")) {
             playIncomingReqMedia(rq);
           }
           return;
@@ -859,6 +931,8 @@ module.exports = function (chai, utils) {
     }
 
     return {
+
+ 
 
 
 
@@ -885,11 +959,16 @@ module.exports = function (chai, utils) {
         playIncomingReqMedia(rq);
       },
 
-      invite : function(destination,headers,contentType,body) {
+      invite : function(destination,headers,contentType,body,params) {
         /*if(!body) {
           contentType = "application/sdp";
           body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
         }*/
+        if(params) {
+          sessionExpires = params.expires;
+          reInviteDisabled = params.reInviteDisabled;
+        }
+
         request = makeRequest("INVITE",destination,headers,contentType,body);
         if(sipParams.playRtp) {
           listenMedia();
@@ -956,8 +1035,9 @@ module.exports = function (chai, utils) {
         if(body) {
           request.content = body;
         }
-       
-        var id1 = [request.headers["call-id"], request.headers.from.params.tag, request.headers.to.params.tag].join(":");
+        
+        var id1 = [request.headers["call-id"]].join(":");
+        l.info("media: Got reinvite",id1);
         stopMedia(id1);
 
         sendRequest(request,callback,provisionalCallback,disableMedia);
@@ -987,6 +1067,7 @@ module.exports = function (chai, utils) {
       },
 
       makeResponse : function(req,statusCode,reasonPhrase) {
+        l.debug("makeResponse",req,statusCode,reasonPhrase);
         return sip.makeResponse(req, statusCode, reasonPhrase);
       },
 
@@ -1012,6 +1093,7 @@ module.exports = function (chai, utils) {
       },
 
       stopMedia : function(id) {
+        l.info("media: stopMedia for",id);
         if(mediaclient[id]) {
           mediaclient[id].stop();
         } else {
