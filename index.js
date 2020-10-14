@@ -52,11 +52,11 @@ if(process.env.useMediatool) {
   var Mediatool = require("mediatool");
   mediatool = new Mediatool();
   mediatool.on("serverStarted", () => {
-    l.info("mediatool started");
+    l.verbose("mediatool started");
   });
 
   mediatool.start();
-  l.info("chai-sip started mediatool");
+  l.verbose("chai-sip started mediatool");
 
 }
 
@@ -120,7 +120,7 @@ function sendBye(req,byecallback) {
 
   request = bye;
   stopMedia(id);
-  l.verbose("after stopmedia");
+  l.debug("after stopmedia");
 
   sip.send(bye,(rs) =>  {
     l.verbose("Received bye response",JSON.stringify(rs,null,2));
@@ -239,7 +239,7 @@ function sendAck(rs) {
 function stopMedia(id) {
 
 
-  l.info("stopMedia called, id", id);
+  l.verbose("stopMedia called, id", id);
 
   if(process.env.useMediatool) {
     if(mediaclient[id]) {
@@ -275,7 +275,7 @@ function listenMedia() {
 
 function playGstMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
 
-  l.info("media: play GST RTP audio for",JSON.stringify(sdpMedia,null,2));
+  l.verbose("media: play GST RTP audio for",JSON.stringify(sdpMedia,null,2));
   var ip;
   if(sdpMedia.connection) {
     ip = sdpMedia.connection.ip;
@@ -330,7 +330,7 @@ function playGstMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
     //l.debug("stdout:",stdout);
     //l.debug("stderr:",stderr);
   });
-  l.info("RTP audio playing, pid ",dialogId);
+  l.verbose("RTP audio playing, pid ",dialogId);
   if(!mediaProcesses[dialogId]) {
     mediaProcesses[dialogId] = [];
   }
@@ -355,17 +355,22 @@ function sendDTMF(digit) {
 function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
 
   if(mediaclient[dialogId]) {
-    l.info("Media already playing");
+    l.warn("Media already playing");
     return;
   }
   if(process.env.useMediatool) {
-    l.info("playMedia called, using mediatool",dialogId);
+    l.verbose("playMedia called, using mediatool",dialogId);
 
     var ip;
     if(sdpMedia.connection) {
       ip = sdpMedia.connection.ip;
     } else {
       ip =sdpOrigin;
+    }
+
+    if(ip=="0.0.0.0") {
+      l.verbose("Got hold SDP, not playing media");
+      return;
     }
 
     var msparams = {pipeline:"dtmfclient",dialogId: dialogId, remoteIp:ip, remotePort: sdpMedia.port, prompt:prompt};
@@ -440,7 +445,7 @@ function handle200(rs,disableMedia=false) {
   
 
   var id = [rs.headers["call-id"]].join(":");
-  l.info("200 response for ",id);
+  l.verbose("200 response for ",id);
 
   if(rs.headers["content-type"]=="application/sdp") {
 
@@ -454,7 +459,7 @@ function handle200(rs,disableMedia=false) {
 
     if(!(sipParams.disableMedia || disableMedia)) {
 
-      l.info("media: 200 response playMedia for ",id);
+      l.verbose("media: 200 response playMedia for ",id);
 
 
       if(sdp.media[0].type=="audio") {
@@ -471,7 +476,7 @@ function handle200(rs,disableMedia=false) {
       }
 
     } else {
-      l.info("Media disabled");
+      l.verbose("Media disabled");
     }
 
 
@@ -645,7 +650,7 @@ function playIncomingReqMedia(rq) {
   if(sdp && !(sipParams.disableMedia)) {
     var id = [rq.headers["call-id"]].join(":");
 
-    l.info("media: playIncomingReqMedia for ",rq.method,id);
+    l.verbose("media: playIncomingReqMedia for ",rq.method,id);
 
 
     if(sdp.media[0].type=="audio") {
@@ -662,7 +667,7 @@ function playIncomingReqMedia(rq) {
     }
 
   } else {
-    l.info("Media disabled");
+    l.verbose("Media disabled");
   }
 
 }
@@ -843,10 +848,10 @@ module.exports = function (chai, utils) {
 
 
         if(rq.method=="INVITE" && rq.headers.to.params.tag) {
-          l.info("*Got reinvite");
+          l.verbose("*Got reinvite");
           let id1 = rq.headers["call-id"];
           stopMedia(id1);
-          l.info("after stopmedia");
+          l.debug("after stopmedia");
         }
         if(requestCallback) {
           var resp;
@@ -1037,7 +1042,7 @@ module.exports = function (chai, utils) {
         }
         
         var id1 = [request.headers["call-id"]].join(":");
-        l.info("media: Got reinvite",id1);
+        l.verbose("media: Got reinvite",id1);
         stopMedia(id1);
 
         sendRequest(request,callback,provisionalCallback,disableMedia);
@@ -1093,7 +1098,7 @@ module.exports = function (chai, utils) {
       },
 
       stopMedia : function(id) {
-        l.info("media: stopMedia for",id);
+        l.verbose("media: stopMedia for",id);
         if(mediaclient[id]) {
           mediaclient[id].stop();
         } else {
