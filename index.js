@@ -39,6 +39,8 @@ var lastMediaId;
 var remoteUri;
 var sessionExpires;
 var reInviteDisabled;
+var refresherDisabled;
+var lateOffer;
 var expirationTimers = {};
 
 
@@ -195,8 +197,10 @@ function sendAck(rs) {
 
 
 
-
-  var ack = makeRequest("ACK", remoteUri, headers, null, null);
+  if(lateOffer)
+    var ack = makeRequest("ACK", remoteUri, headers, "application/sdp", getInviteBody());
+  else
+    var ack = makeRequest("ACK", remoteUri, headers, null, null);
   l.debug("ACK",ack);
   //ack.headers["via"] = rs.headers.via;
 
@@ -558,6 +562,30 @@ function gotFinalResponse(response,callback) {
   }
 }
 
+function getInviteBody() {
+  if(!sipParams.rtpAddress) {
+    sipParams.rtpAddress = ip.address();
+  }
+
+  if(!sipParams.rtpPort) {
+    sipParams.rtpPort = 30000;
+  }
+
+  
+
+  let body =   "v=0\r\n"+
+  "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
+  "s=-\r\n"+
+  "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
+  "t=0 0\r\n"+
+  "m=audio "+sipParams.rtpPort+" RTP/AVP 8\r\n"+
+  "a=rtpmap:0 PCMA/8000\r\n"+
+  "a=ptime:20\r\n"+
+  "a=sendrecv\r\n";
+
+  return body;
+}
+
 
 function makeRequest(method, destination, headers, contentType, body) {
 
@@ -613,25 +641,8 @@ function makeRequest(method, destination, headers, contentType, body) {
 
 
 
-  } else if(method=="INVITE"){
-
-    if(!sipParams.rtpAddress) {
-      sipParams.rtpAddress = ip.address();
-    }
-
-    if(!sipParams.rtpPort) {
-      sipParams.rtpPort = 30000;
-    }
-
-    req.content =   "v=0\r\n"+
-    "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
-    "s=-\r\n"+
-    "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
-    "t=0 0\r\n"+
-    "m=audio "+sipParams.rtpPort+" RTP/AVP 8\r\n"+
-    "a=rtpmap:0 PCMA/8000\r\n"+
-    "a=ptime:20\r\n"+
-    "a=sendrecv\r\n";
+  } else if(method=="INVITE" && !lateOffer){
+    req.content = getInviteBody();
     req.headers["content-type"] = "application/sdp";
   }
 
@@ -695,7 +706,10 @@ function startSessionRefresher(rq,callId,lastSeq) {
 
 function sendRequest(rq,callback,provisionalCallback,disableMedia=false) {
   if(sessionExpires) {
-    rq.headers["session-expires"] = sessionExpires + ";refresher=uac";
+    rq.headers["session-expires"] = sessionExpires;
+    if(!refresherDisabled) {
+      rq.headers["session-expires"] += ";refresher=uac";
+    }
     rq.headers.supported = "timer";
   }
   
@@ -969,9 +983,12 @@ module.exports = function (chai, utils) {
           contentType = "application/sdp";
           body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
         }*/
+       
         if(params) {
           sessionExpires = params.expires;
           reInviteDisabled = params.reInviteDisabled;
+          refresherDisabled = params.refresherDisabled;
+          lateOffer = params.lateOffer;
         }
 
         request = makeRequest("INVITE",destination,headers,contentType,body);
