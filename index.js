@@ -41,6 +41,7 @@ var sessionExpires;
 var reInviteDisabled;
 var refresherDisabled;
 var lateOffer;
+var dropAck;
 var expirationTimers = {};
 
 
@@ -183,6 +184,12 @@ function sendCancel(req,callback) {
 
 function sendAck(rs) {
   l.verbose("Generate ACK reply for response",rs);
+
+  if(dropAck) {
+    l.verbose("Dropping ack, dropAck is true...");
+    return;
+  }
+
   var headers = {
 
     to: rs.headers.to,
@@ -989,6 +996,7 @@ module.exports = function (chai, utils) {
           reInviteDisabled = params.reInviteDisabled;
           refresherDisabled = params.refresherDisabled;
           lateOffer = params.lateOffer;
+          dropAck = params.dropAck;
         }
 
         request = makeRequest("INVITE",destination,headers,contentType,body);
