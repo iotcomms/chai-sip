@@ -63,6 +63,161 @@ if(process.env.useMediatool) {
 
 }
 
+function sendUpdateForRequest(req,seq) {
+
+  var ipAddress;
+  if(!sipParams.publicAddress) {
+    ipAddress =  ip.address();
+  } else {
+    ipAddress = sipParams.publicAddress;
+  }
+
+  var to;
+  var from;
+
+  if(req.method) {
+    to = req.headers.from;
+    from = req.headers.to;
+  } else {
+    to = req.headers.to;
+    from = req.headers.from;
+  }
+
+  let seqVal = seq ? seq : req.headers.cseq.seq++;
+
+  var update = {
+    method: "UPDATE",
+    uri: req.headers.contact[0].uri,
+    headers: {
+      to: to,
+      from: from,
+      supported: "timer",
+      "Session-Expires": "900;refresher=uac",
+      "call-id": req.headers["call-id"],
+      "Min-SE": 900,
+      cseq: {method: "INVITE", seq: seqVal},
+      contact: [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
+    }
+  };
+
+
+  if(req.headers["record-route"]) {
+    update.headers["route"] = [];
+    if(req.method) {
+      for(let i=0;i<req.headers["record-route"].length;i++){
+        l.debug("Push bye rr header",req.headers["record-route"][i]);
+        update.headers["route"].push(req.headers["record-route"][i]);
+      }
+    } else {
+      for(let i=req.headers["record-route"].length-1;i>=0;i--){
+        l.debug("Push bye rr header",req.headers["record-route"][i]);
+        update.headers["route"].push(req.headers["record-route"][i]);
+      }
+
+    }
+
+  }
+
+  l.verbose("Send UPDATE request",JSON.stringify(update,null,2));
+
+  //var id = [req.headers["call-id"]].join(":");
+
+
+  request = update;
+
+
+
+  sip.send(update,(rs) =>  {
+    l.verbose("Received UPDATE response",JSON.stringify(rs,null,2));
+  });
+
+
+
+  return update;
+
+}
+
+function sendReinviteForRequest(req,seq,lateOfferSdp,callback) {
+
+  var ipAddress;
+  if(!sipParams.publicAddress) {
+    ipAddress =  ip.address();
+  } else {
+    ipAddress = sipParams.publicAddress;
+  }
+
+  var to;
+  var from;
+
+  if(req.method) {
+    to = req.headers.from;
+    from = req.headers.to;
+  } else {
+    to = req.headers.to;
+    from = req.headers.from;
+  }
+
+  let seqVal = seq ? seq : req.headers.cseq.seq++;
+
+  var reinvite = {
+    method: "INVITE",
+    uri: req.headers.contact[0].uri,
+    headers: {
+      to: to,
+      from: from,
+      "call-id": req.headers["call-id"],
+      cseq: {method: "INVITE", seq: seqVal},
+      contact: [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
+    }
+  };
+
+
+  if(req.headers["record-route"]) {
+    reinvite.headers["route"] = [];
+    if(req.method) {
+      for(let i=0;i<req.headers["record-route"].length;i++){
+        l.debug("Push bye rr header",req.headers["record-route"][i]);
+        reinvite.headers["route"].push(req.headers["record-route"][i]);
+      }
+    } else {
+      for(let i=req.headers["record-route"].length-1;i>=0;i--){
+        l.debug("Push bye rr header",req.headers["record-route"][i]);
+        reinvite.headers["route"].push(req.headers["record-route"][i]);
+      }
+
+    }
+
+  }
+
+  l.verbose("Send reinvite request",JSON.stringify(reinvite,null,2));
+
+  //var id = [req.headers["call-id"]].join(":");
+
+
+  request = reinvite;
+
+
+
+  sip.send(reinvite,(rs) =>  {
+    l.verbose("Received reinvite response",JSON.stringify(rs,null,2));
+    if(callback) {
+      l.verbose("Call reInvite callback");
+      callback(rs);
+    }
+    sendAck(rs,lateOfferSdp);
+
+
+  });
+
+
+
+  return reinvite;
+
+
+
+
+}
+
 
 function sendBye(req,byecallback) {
   var ipAddress;
@@ -90,10 +245,7 @@ function sendBye(req,byecallback) {
       to: to,
       from: from,
       "call-id": req.headers["call-id"],
-      cseq: {method: "BYE", seq: req.headers.cseq.seq++},
-      contact: [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
-
-
+      cseq: {method: "BYE", seq: req.headers.cseq.seq++}
     }
   };
 
@@ -182,7 +334,7 @@ function sendCancel(req,callback) {
 
 }
 
-function sendAck(rs) {
+function sendAck(rs,sdp) {
   l.verbose("Generate ACK reply for response",rs);
 
   if(dropAck) {
@@ -203,11 +355,11 @@ function sendAck(rs) {
   l.debug("Headers",headers);
 
 
-
-  if(lateOffer)
-    var ack = makeRequest("ACK", remoteUri, headers, "application/sdp", getInviteBody());
+  var ack;
+  if(lateOffer||sdp)
+    ack = makeRequest("ACK", remoteUri, headers, "application/sdp", getInviteBody());
   else
-    var ack = makeRequest("ACK", remoteUri, headers, null, null);
+    ack = makeRequest("ACK", remoteUri, headers, null, null);
   l.debug("ACK",ack);
   //ack.headers["via"] = rs.headers.via;
 
@@ -403,7 +555,7 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
       });
 
       client.on("rtpTimeout", (params) =>  {
-        l.verbose("Got rtpTimout event for ",params,", will stop IVR with timeoutreason");
+        l.verbose("Got rtpTimeout event for ",params,", will stop IVR with timeoutreason");
       });
 
 
@@ -1094,6 +1246,14 @@ module.exports = function (chai, utils) {
         }
         sendBye(req,byecallback);
 
+      },
+
+      sendReinviteForRequest : function(req,seq,lateOfferSdp,callback) {
+        sendReinviteForRequest(req,seq,lateOfferSdp,callback);
+      },
+
+      sendUpdateForRequest : function(req,seq) {
+        sendUpdateForRequest(req,seq);
       },
 
       makeResponse : function(req,statusCode,reasonPhrase) {
