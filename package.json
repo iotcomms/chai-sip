@@ -1,6 +1,6 @@
 {
   "name": "chai-sip",
-  "version": "0.0.40",
+  "version": "0.0.41",
   "description": "SIP plugin for Chai",
   "main": "index.js",
   "scripts": {
