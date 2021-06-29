@@ -22,6 +22,7 @@ if(process.env.LOG_LEVEL) {
 
 
 const { execFile } = require("child_process");
+const { isThisQuarter } = require("date-fns");
 
 
 var dialogs = {};
@@ -40,6 +41,9 @@ var remoteUri;
 var sessionExpires;
 var reInviteDisabled;
 var refresherDisabled;
+var refreshUsingUpdate;
+var updateRefreshBody;
+var onRefreshFinalResponse;
 var lateOffer;
 var dropAck;
 var expirationTimers = {};
@@ -137,7 +141,7 @@ function sendUpdateForRequest(req,seq) {
 
 }
 
-function sendReinviteForRequest(req,seq,lateOfferSdp,callback) {
+function sendReinviteForRequest(req,seq,params,callback) {
 
   var ipAddress;
   if(!sipParams.publicAddress) {
@@ -199,12 +203,15 @@ function sendReinviteForRequest(req,seq,lateOfferSdp,callback) {
 
 
   sip.send(reinvite,(rs) =>  {
-    l.verbose("Received reinvite response",JSON.stringify(rs,null,2));
+    let ackDelay = params.ackDelay || 0;
+    l.verbose("Received reinvite response",JSON.stringify(rs,null,2), "ackDelay",ackDelay);
     if(callback) {
       l.verbose("Call reInvite callback");
       callback(rs);
     }
-    sendAck(rs,lateOfferSdp);
+
+    
+    setTimeout(()=>{sendAck(rs,params.lateOfferSdp);},ackDelay*1000);
 
 
   });
@@ -404,7 +411,7 @@ function stopMedia(id) {
       mediaclient[id].stop();
       delete mediaclient[id];
     } else {
-      l.warn("No matching mediaclient, have these:",mediaclient);
+      l.warn("No matching mediaclient for " + id);
     }
   
 
@@ -519,8 +526,10 @@ function playPcapFile(dialogId,sdpMedia,sdpOrigin,pcapFile) {
     ip =sdpOrigin;
   }
 
+  l.verbose("Send pcap to ", ip, "listen on port ", sipParams.rtpPort );
+
   var gstStr;
-  gstStr = "-m filesrc name="+dialogId+" location="+pcapFile+" ! pcapparse  ! capsfilter caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host="+ip+" port="+sdpMedia.port;
+  gstStr = "-m udpsrc port="+sipParams.rtpPort+" ! fakesink filesrc name="+dialogId+" location="+pcapFile+" ! pcapparse  ! capsfilter caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host="+ip+" port="+sdpMedia.port;
     
 
 
@@ -785,6 +794,14 @@ function getInviteBody() {
     sipParams.rtpPort = 30000;
   }
 
+  let pt = 8;
+  let codec = "PCMA";
+
+  if(sipParams.codec=="PCMU") {
+    pt = 0;
+    codec = "PCMU";
+  }
+
   
 
   let body =   "v=0\r\n"+
@@ -792,8 +809,8 @@ function getInviteBody() {
   "s=-\r\n"+
   "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
   "t=0 0\r\n"+
-  "m=audio "+sipParams.rtpPort+" RTP/AVP 8\r\n"+
-  "a=rtpmap:0 PCMA/8000\r\n"+
+  "m=audio "+sipParams.rtpPort+" RTP/AVP "+pt+"\r\n"+
+  "a=rtpmap:"+pt+" "+codec+"/8000\r\n"+
   "a=ptime:20\r\n"+
   "a=sendrecv\r\n";
 
@@ -906,11 +923,28 @@ function startSessionRefresher(rq,callId,lastSeq) {
       l.verbose("nextSeq",nextSeq);
       let rqCopy = sip.copyMessage(rq);
       delete rqCopy.headers.via;
+
+      if(refreshUsingUpdate) {
+        rqCopy.method = "UPDATE";
+        rqCopy.headers.cseq.method="UPDATE";
+
+        if(!updateRefreshBody) {
+          delete rqCopy.content;
+          delete rqCopy.headers["content-type"];
+          delete rqCopy.headers["content-length"];
+        }
+
+      }
       rqCopy.headers.cseq.seq = nextSeq;
       sip.send(rqCopy,(rs)=>{
+        if(rs.status>=200 && onRefreshFinalResponse) {
+          onRefreshFinalResponse(rs);
+        }
         if(rs.status==200) {
           startSessionRefresher(rqCopy,callId,nextSeq);
-          sendAck(rs);
+          if(rqCopy.method == "INVITE") {
+            sendAck(rs);
+          }
         }
       });
 
@@ -1121,15 +1155,17 @@ module.exports = function (chai, utils) {
             }
 
             resp = sip.makeResponse(rq,200,"OK");
-            resp.content =   "v=0\r\n"+
-            "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
-            "s=-\r\n"+
-            "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
-            "t=0 0\r\n"+
-            "m=audio "+sipParams.rtpPort+" RTP/AVP 0\r\n"+
-            "a=rtpmap:0 PCMU/8000\r\n"+
-            "a=ptime:20\r\n"+
-            "a=sendrecv\r\n";
+            if(!resp.content) {
+              resp.content =   "v=0\r\n"+
+              "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
+              "s=-\r\n"+
+              "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
+              "t=0 0\r\n"+
+              "m=audio "+sipParams.rtpPort+" RTP/AVP 0\r\n"+
+              "a=rtpmap:0 PCMU/8000\r\n"+
+              "a=ptime:20\r\n"+
+              "a=sendrecv\r\n";
+            }
             resp.headers["content-type"] = "application/sdp";
             resp.headers["contact"] = [{uri: "sip:"+sipParams.userid+"@" + ipAddress  + ":"+sipParams.port+";transport="+sipParams.transport}];
             resp.headers["record-route"] = rq.headers["record-route"];
@@ -1141,7 +1177,7 @@ module.exports = function (chai, utils) {
           sip.send(resp);
 
           //Media for incoming request
-          if(rq.content && (resp.status==200|| rq.method=="ACK")) {
+          if(rq.content && sipParams.disableMedia!=true && (resp.status==200|| rq.method=="ACK")) {
             playIncomingReqMedia(rq);
           }
           return;
@@ -1202,6 +1238,10 @@ module.exports = function (chai, utils) {
           sessionExpires = params.expires;
           reInviteDisabled = params.reInviteDisabled;
           refresherDisabled = params.refresherDisabled;
+          refreshUsingUpdate = params.refreshUsingUpdate;
+          updateRefreshBody = params.updateRefreshBody;
+          onRefreshFinalResponse = params.onRefreshFinalResponse;
+
           lateOffer = params.lateOffer;
           dropAck = params.dropAck;
         }
@@ -1303,9 +1343,11 @@ module.exports = function (chai, utils) {
 
       },
 
-      sendReinviteForRequest : function(req,seq,lateOfferSdp,callback) {
-        sendReinviteForRequest(req,seq,lateOfferSdp,callback);
+      sendReinviteForRequest : function(req,seq,params,callback) {
+        sendReinviteForRequest(req,seq,params,callback);
       },
+
+      playMedia : playMedia,
 
       sendUpdateForRequest : function(req,seq) {
         sendUpdateForRequest(req,seq);
@@ -1319,6 +1361,12 @@ module.exports = function (chai, utils) {
       parseUri : function(uri) {
         return sip.parseUri(uri);
 
+      },
+
+      playPcapFile : playPcapFile,
+
+      setPcapFile: function(file) {
+        sipParams.pcapFile = file;
       },
 
       send: function(req) {
