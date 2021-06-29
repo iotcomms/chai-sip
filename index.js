@@ -22,7 +22,6 @@ if(process.env.LOG_LEVEL) {
 
 
 const { execFile } = require("child_process");
-const { isThisQuarter } = require("date-fns");
 
 
 var dialogs = {};
@@ -714,8 +713,6 @@ function handle200(rs,disableMedia=false) {
 
 
 
-
-
   // registring our 'dialog' which is just function to process in-dialog requests
   if(!dialogs[id]) {
     dialogs[id] = function(rq) {
@@ -1101,6 +1098,11 @@ module.exports = function (chai, utils) {
     try {
       sip.start(sipParams, function(rq) {
         l.debug("Received request",rq);
+
+        if (rq.method=="BYE") {
+          let id = rq.headers["call-id"];
+          stopMedia(id);
+        }
 
         if(rq.method=="BYE" && expirationTimers[rq.headers["call-id"]]) {
           l.verbose("Will clear session expiration timer.");
