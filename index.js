@@ -86,7 +86,13 @@ function sendUpdateForRequest(req,seq) {
     from = req.headers.from;
   }
 
-  let seqVal = seq ? seq : req.headers.cseq.seq++;
+  let seqVal;
+  if (seq) {
+    seqVal = seq;
+  } else {
+    req.headers.cseq.seq++;
+    seqVal = req.headers.cseq.seq;
+  }
 
   var update = {
     method: "UPDATE",
@@ -159,8 +165,13 @@ function sendReinviteForRequest(req,seq,params,callback) {
     to = req.headers.to;
     from = req.headers.from;
   }
-
-  let seqVal = seq ? seq : req.headers.cseq.seq++;
+  let seqVal;
+  if (seq) {
+    seqVal = seq;
+  } else {
+    req.headers.cseq.seq++;
+    seqVal = req.headers.cseq.seq;
+  }
 
   var reinvite = {
     method: "INVITE",
@@ -239,6 +250,8 @@ function sendBye(req,byecallback) {
     from = req.headers.from;
   }
 
+  req.headers.cseq.seq++;
+
   var bye = {
     method: "BYE",
     uri: req.headers.contact[0].uri,
@@ -246,7 +259,7 @@ function sendBye(req,byecallback) {
       to: to,
       from: from,
       "call-id": req.headers["call-id"],
-      cseq: {method: "BYE", seq: req.headers.cseq.seq++}
+      cseq: {method: "BYE", seq: req.headers.cseq.seq}
     }
   };
 
@@ -1103,7 +1116,7 @@ module.exports = function (chai, utils) {
           let id = rq.headers["call-id"];
           stopMedia(id);
         }
-
+        
         if(rq.method=="BYE" && expirationTimers[rq.headers["call-id"]]) {
           l.verbose("Will clear session expiration timer.");
           clearTimeout(expirationTimers[rq.headers["call-id"]]);
@@ -1305,6 +1318,7 @@ module.exports = function (chai, utils) {
         }
 
         request.headers.cseq.seq++;
+
 
         delete request.headers.via;
         if(contentType) {
