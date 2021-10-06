@@ -819,8 +819,12 @@ function getInviteBody() {
   "s=-\r\n"+
   "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
   "t=0 0\r\n"+
-  "m=audio "+sipParams.rtpPort+" RTP/AVP "+pt+"\r\n"+
+  "m=audio "+sipParams.rtpPort+" RTP/AVP "+pt+" 101\r\n"+
   "a=rtpmap:"+pt+" "+codec+"/8000\r\n"+
+  "a=ptime:20\r\n"+
+  "a=sendrecv\r\n"+
+  "a=rtpmap:101 telephone-event/8000\r\n"+
+  "a=fmtp:101 0-15\r\n"+
   "a=ptime:20\r\n"+
   "a=sendrecv\r\n";
 
