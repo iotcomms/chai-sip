@@ -311,41 +311,29 @@ function sendCancel(req,callback) {
     method: "CANCEL",
     uri: request.uri,
     headers: {
-      to: req.headers.to,
-      via: req.headers.via,
-      from: req.headers.from,
-      "call-id": req.headers["call-id"],
-      cseq: {method: "CANCEL", seq: req.headers.cseq.seq}
-
+      to: request.headers.to,
+      via: request.headers.via,
+      from: request.headers.from,
+      "call-id": request.headers["call-id"],
+      cseq: {method: "CANCEL", seq: request.headers.cseq.seq}
+ 
     }
   };
-
-  //bye.headers["via"] = [req.headers.via[2]];
-
-  if(req.headers["record-route"]) {
-    cancel.headers["route"] = [];
-    for(var i=req.headers["record-route"].length-1;i>=0;i--){
-      l.debug("Push bye rr header",req.headers["record-route"][i]);
-      cancel.headers["route"].push(req.headers["record-route"][i]);
-
-    }
+ 
+  if(request.headers["route"]) {
+    cancel.headers["route"] = request.headers["route"];
   }
-
-  l.verbose("Send CANCEL request",JSON.stringify(cancel,null,2));
-
+ 
   request = cancel;
-
+ 
   sip.send(cancel,function(rs) {
     l.verbose("Received CANCEL response",JSON.stringify(rs,null,2));
     if(callback) {
       callback(rs);
     }
   });
-
-
-
   return cancel;
-
+ 
 }
 
 function sendAck(rs,sdp) {
