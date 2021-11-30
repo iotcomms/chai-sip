@@ -185,6 +185,11 @@ function sendReinviteForRequest(req,seq,params,callback) {
     }
   };
 
+  if(params.codec || params.rtpAddress || params.rtpPort) {
+    reinvite.content = getInviteBody(params);
+    req.headers["content-type"] = "application/sdp";
+  }
+
 
   if(req.headers["record-route"]) {
     reinvite.headers["route"] = [];
@@ -578,7 +583,7 @@ function playMedia(dialogId,sdpMedia,sdpOrigin,prompt) {
     return;
   }
   if(process.env.useMediatool) {
-    l.verbose("playMedia called, using mediatool",dialogId);
+    l.verbose("playMedia called, using mediatool",dialogId,prompt);
 
     var ip;
     if(sdpMedia.connection) {
@@ -681,11 +686,15 @@ function handle200(rs,disableMedia=false) {
       l.verbose("media: 200 response playMedia for ",id);
 
       if(sipParams.pcapFile) {
-        playPcapFile(id,sdp.media[0],sdp.origin.address,sipParams.pcapFile);
+        setTimeout( ()=>{
+          l.verbose("Starting playPcapFile");
+          playPcapFile(id,sdp.media[0],sdp.origin.address,sipParams.pcapFile);
+        },2000);
         return;
       }
 
       if(sipParams.mediaFile) {
+        l.verbose("Starting mediaFile",sipParams.mediaFile);
         prompt0 = sipParams.mediaFile;
       }
 
@@ -749,7 +758,17 @@ function replyToDigest(request,response,callback,provisionalCallback) {
 
 
   var session = {nonce: ""};
-  var creds = {user:sipParams.userid,password:sipParams.password,realm:sipParams.domain, nonce:"",uri:""};
+  var creds;
+
+  if(sipParams.authInfo) {
+    let user = sip.parseUri(request.headers.from.uri).user;
+    if(sipParams.authInfo[user]){
+      creds = {user:user,password:sipParams.authInfo[user],realm:sipParams.domain, nonce:"",uri:""};
+    }
+
+  } else {
+    creds = {user:sipParams.userid,password:sipParams.password,realm:sipParams.domain, nonce:"",uri:""};
+  }
   digest.signRequest(session,request,response,creds);
   l.verbose("Sending request again with authorization header",JSON.stringify(request,null,2));
   sip.send(request,function(rs) {
@@ -783,31 +802,47 @@ function gotFinalResponse(response,callback) {
   }
 }
 
-function getInviteBody() {
-  if(!sipParams.rtpAddress) {
-    sipParams.rtpAddress = ip.address();
+function getInviteBody(params={}) {
+  let rtpAddress = ip.address();
+
+  if(sipParams.rtpAddress) {
+    rtpAddress = sipParams.rtpAddress;
   }
 
-  if(!sipParams.rtpPort) {
-    sipParams.rtpPort = 30000;
+  if(params.rtpAddress) {
+    rtpAddress = params.rtpAddress;
+  }
+
+  let rtpPort = 30000;
+  if(sipParams.rtpPort) {
+    rtpPort = sipParams.rtpPort;
+  }
+
+  if(params.rtpPort) {
+    rtpPort = params.rtpPort;
   }
 
   let pt = 8;
   let codec = "PCMA";
 
-  if(sipParams.codec=="PCMU") {
+  if(sipParams.codec=="PCMU" ||params.codec=="PCMU") {
     pt = 0;
     codec = "PCMU";
+  }
+
+  if(sipParams.codec=="opus" ||(params.codec && params.codec.toLowerCase()=="opus")) {
+    pt = 111;
+    codec = "opus";
   }
 
   
 
   let body =   "v=0\r\n"+
-  "o=- "+rstring()+" "+rstring()+" IN IP4 "+sipParams.rtpAddress+"\r\n"+
+  "o=- "+rstring()+" "+rstring()+" IN IP4 "+rtpAddress+"\r\n"+
   "s=-\r\n"+
-  "c=IN IP4 "+sipParams.rtpAddress+"\r\n"+
+  "c=IN IP4 "+rtpAddress+"\r\n"+
   "t=0 0\r\n"+
-  "m=audio "+sipParams.rtpPort+" RTP/AVP "+pt+" 101\r\n"+
+  "m=audio "+rtpPort+" RTP/AVP "+pt+" 101\r\n"+
   "a=rtpmap:"+pt+" "+codec+"/8000\r\n"+
   "a=ptime:20\r\n"+
   "a=sendrecv\r\n"+
@@ -820,7 +855,7 @@ function getInviteBody() {
 }
 
 
-function makeRequest(method, destination, headers, contentType, body) {
+function makeRequest(method, destination, headers, contentType, body,user) {
 
   l.debug("makeRequest",method);
 
@@ -831,6 +866,12 @@ function makeRequest(method, destination, headers, contentType, body) {
     ipAddress = sipParams.publicAddress;
   }
 
+  let contactUser = sipParams.userid;
+
+  if(user) {
+    contactUser=user;
+  }
+
   var req = {
     method: method,
     uri: destination,
@@ -839,7 +880,7 @@ function makeRequest(method, destination, headers, contentType, body) {
       from: {uri: "sip:"+sipParams.userid+"@"+sipParams.domain+"", params: {tag: rstring()}},
       "call-id": rstring()+Date.now().toString(),
       cseq: {method: method, seq: Math.floor(Math.random() * 1e5)},
-      contact: [{uri: "sip:"+sipParams.userid+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
+      contact: [{uri: "sip:"+contactUser+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport  }],
       //    via: createVia(),
       "max-forwards" : 70
 
@@ -1137,6 +1178,7 @@ module.exports = function (chai, utils) {
 
             
             resp = requestCallback(rq);
+            l.debug("requestCallback resp",resp);
             if(rq.method=="INVITE") {
               rq.headers.to.params.tag = rstring();
              
@@ -1148,6 +1190,7 @@ module.exports = function (chai, utils) {
           }
 
           if(resp=="sendNoResponse") {
+            l.debug("sendNoResponse action");
             return;
           }
 
@@ -1218,7 +1261,7 @@ module.exports = function (chai, utils) {
 
       },
       register : function(destination,user,headers,callback,provisionalCallback) {
-        request = makeRequest("REGISTER","sip:"+destination+";transport="+sipParams.transport,headers,null,null);
+        request = makeRequest("REGISTER","sip:"+destination+";transport="+sipParams.transport,headers,null,null,user);
         let uri = "sip:"+user+"@"+destination;
         request.headers.from= {uri:uri,params:{tag:rstring()}};
         request.headers.to= {uri:uri};
