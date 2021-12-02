@@ -185,7 +185,7 @@ function sendReinviteForRequest(req,seq,params,callback) {
     }
   };
 
-  if(params.codec || params.rtpAddress || params.rtpPort) {
+  if((params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer!=true) {
     reinvite.content = getInviteBody(params);
     req.headers["content-type"] = "application/sdp";
   }
@@ -225,8 +225,17 @@ function sendReinviteForRequest(req,seq,params,callback) {
       callback(rs);
     }
 
+    let lateOfferSdp = params.lateOfferSdp;
+
+    console.log("sip.send ack params",params);
+
+    if((params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer==true) {
+      lateOfferSdp = getInviteBody(params);
+      console.log("lateOfferSdp",lateOfferSdp);
+    }
+
     
-    setTimeout(()=>{sendAck(rs,params.lateOfferSdp);},ackDelay*1000);
+    setTimeout(()=>{sendAck(rs,lateOfferSdp);},ackDelay*1000);
 
 
   });
@@ -361,10 +370,16 @@ function sendAck(rs,sdp) {
 
   l.debug("Headers",headers);
 
+  let body;
+  if(sdp) {
+    body = sdp;
+  } else {
+    body = getInviteBody()
+  }
 
   var ack;
   if(lateOffer||sdp)
-    ack = makeRequest("ACK", remoteUri, headers, "application/sdp", getInviteBody());
+    ack = makeRequest("ACK", remoteUri, headers, "application/sdp", body);
   else
     ack = makeRequest("ACK", remoteUri, headers, null, null);
   l.debug("ACK",ack);
