@@ -227,6 +227,10 @@ function sendReinviteForRequest(req,seq,params,callback) {
 
     let lateOfferSdp = params.lateOfferSdp;
 
+    if(params.lateOfferSdp===true) {
+      lateOfferSdp = getInviteBody();
+    }
+
     console.log("sip.send ack params",params);
 
     if((params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer==true) {
@@ -374,7 +378,7 @@ function sendAck(rs,sdp) {
   if(sdp) {
     body = sdp;
   } else {
-    body = getInviteBody()
+    body = getInviteBody();
   }
 
   var ack;
