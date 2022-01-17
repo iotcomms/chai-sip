@@ -1088,11 +1088,16 @@ var sipParams = {};
 
 
 
-module.exports = function (chai, utils) {
+module.exports = function (chai, utils, sipStack) {
 
   var  assert = chai.assert;
- 
 
+    
+  if (!sipStack) {
+    sip = require("sip");
+  } else {
+    sip = sipStack;
+  } 
 
   utils.addMethod(chai.Assertion.prototype, "status", function (code) {
     var obj = utils.flag(this, "object");
