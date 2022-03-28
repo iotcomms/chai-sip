@@ -9,6 +9,8 @@ var util = require("util");
 const { execFile } = require("child_process");
 var mediatool;
 
+var mediaProcesses = {};
+
 
 if (process.env.LOG_LEVEL) {
   l.level = process.env.LOG_LEVEL;
@@ -96,9 +98,19 @@ module.exports = function (chai, utils, sipStack) {
 
   chai.terminateMediatool = function () {
     if (mediatool) {
-      mediatool.stop();
+      mediatool.stop(0);
     }
-  }
+
+    if(mediaProcesses) {
+      for(let dialogId in mediaProcesses ) {
+        if(Array.isArray(mediaProcesses[dialogId])) {
+          for(let pid in mediaProcesses[dialogId]) {
+            process.kill(pid);
+          }
+        }
+      }
+    } 
+  };
 
 
 
@@ -109,7 +121,7 @@ module.exports = function (chai, utils, sipStack) {
     var dialogs = {};
     var request;
     var playing = {};
-    var mediaProcesses = {};
+  
     var prompt0 = __basedir + "/caller.wav";
     var prompt1 = __basedir + "/callee.wav";
     
@@ -1164,7 +1176,7 @@ module.exports = function (chai, utils, sipStack) {
 
             resp = requestCallback(rq);
             l.debug("requestCallback resp", resp);
-            if (rq.method == "INVITE") {
+            if (rq.method == "INVITE" && !rq.headers.to.params.tag) {
               rq.headers.to.params.tag = rstring();
 
             }
