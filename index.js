@@ -157,24 +157,24 @@ module.exports = function (chai, utils, sipStack) {
         if (mediaclient[id]) {
           mediaclient[id].stop();
           delete mediaclient[id];
-        } else {
-          l.warn("No matching mediaclient for " + id);
-        }
-      } else {
-        if (mediaProcesses[id]) {
-          for (var pid of mediaProcesses[id]) {
-            try {
-              l.verbose("Stopping mediaprocess... " + pid.pid);
-              process.kill(pid.pid);
-            } catch (err) {
-              if (!err.code == "ESRCH") {
-                l.verbose("Error killing process", JSON.stringify(err));
-              }
+          return;
+        } 
+      } 
+      if(mediaProcesses[id]) {
+        for(var pid of mediaProcesses[id]) {
+          try{
+            l.verbose("Stopping mediaprocess... " + pid.pid);
+            process.kill(pid.pid);
+          } catch(err) {
+            if(!err.code=="ESRCH") {
+              l.verbose("Error killing process",JSON.stringify(err));
             }
           }
-          delete mediaProcesses[id];
         }
+        delete mediaProcesses[id];
+        return;
       }
+      l.warn("No matching mediaclient for " + id);
     }
 
     function listenMedia() {
