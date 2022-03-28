@@ -431,7 +431,7 @@ module.exports = function (chai, utils, sipStack) {
       return body;
     }
 
-    function makeRequest(method, destination, headers, contentType, body, user,params) {
+    function makeRequest(method, destination, headers, contentType, body, user,params={}) {
 
       l.debug("makeRequest", method);
 
