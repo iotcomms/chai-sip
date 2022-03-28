@@ -455,7 +455,7 @@ module.exports = function (chai, utils, sipStack) {
    
       if(params.regId && params.instanceId) {
         contactObj.params["+sip.instance"] = `"${params.instanceId}"`;
-        contactObj.params["reg-id"] = params.regid;
+        contactObj.params["reg-id"] = params.regId;
       }
    
       if(params.qValue) {
