@@ -451,6 +451,11 @@ module.exports = function (chai, utils, sipStack) {
         }
       };
 
+      if(sipParams.displayName) {
+        req.headers.from.name = sipParams.displayName;
+      }
+   
+
       l.debug("req", JSON.stringify(req));
 
 
