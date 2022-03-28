@@ -431,7 +431,7 @@ module.exports = function (chai, utils, sipStack) {
       return body;
     }
 
-    function makeRequest(method, destination, headers, contentType, body, user) {
+    function makeRequest(method, destination, headers, contentType, body, user,params) {
 
       l.debug("makeRequest", method);
 
@@ -448,6 +448,20 @@ module.exports = function (chai, utils, sipStack) {
         contactUser = user;
       }
 
+      let contactObj = {
+        uri: "sip:"+contactUser+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport,
+        params: {}  
+      };
+   
+      if(params.regId && params.instanceId) {
+        contactObj.params["+sip.instance"] = `"${params.instanceId}"`;
+        contactObj.params["reg-id"] = params.regid;
+      }
+   
+      if(params.qValue) {
+        contactObj.params.q = params.qValue;
+      }
+
       var req = {
         method: method,
         uri: destination,
@@ -456,7 +470,7 @@ module.exports = function (chai, utils, sipStack) {
           from: { uri: "sip:" + sipParams.userid + "@" + sipParams.domain + "", params: { tag: rstring() } },
           "call-id": rstring() + Date.now().toString(),
           cseq: { method: method, seq: Math.floor(Math.random() * 1e5) },
-          contact: [{ uri: "sip:" + contactUser + "@" + ipAddress + ":" + sipParams.port + ";transport=" + sipParams.transport }],
+          contact: [contactObj],
           //    via: createVia(),
           "max-forwards": 70
 
@@ -1251,8 +1265,8 @@ module.exports = function (chai, utils, sipStack) {
         sendRequest(request, callback, provisionalCallback);
 
       },
-      register: function (destination, user, headers, callback, provisionalCallback) {
-        request = makeRequest("REGISTER", "sip:" + destination + ";transport=" + sipParams.transport, headers, null, null, user);
+      register: function (destination, user, headers, callback, provisionalCallback,params) {
+        request = makeRequest("REGISTER", "sip:" + destination + ";transport=" + sipParams.transport, headers, null, null, user,params);
         let uri = "sip:" + user + "@" + destination;
         request.headers.from = { uri: uri, params: { tag: rstring() } };
         request.headers.to = { uri: uri };
