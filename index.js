@@ -244,9 +244,9 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
-    function sendDTMF(digit) {
+    function sendDTMF(digit,duration=80.0) {
       if (currentMediaclient) {
-        currentMediaclient.sendDTMF(digit);
+        currentMediaclient.sendDTMF(digit,duration);
       } else {
         l.error("chai-sip is not configured with mediatool media component. This is not implemented without it.");
       }
@@ -1444,8 +1444,9 @@ module.exports = function (chai, utils, sipStack) {
         mySip.stop();
 
       },
-      sendDTMF: function (digit) {
-        sendDTMF(digit);
+      sendDTMF: function (digit,duration) {
+        l.verbose("chai-sip sendDTMF",digit,duration);
+        sendDTMF(digit,duration);
 
       },
 
