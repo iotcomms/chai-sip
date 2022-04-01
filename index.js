@@ -100,16 +100,15 @@ module.exports = function (chai, utils, sipStack) {
     if (mediatool) {
       mediatool.stop(0);
     }
-
-    if(mediaProcesses) {
-      for(let dialogId in mediaProcesses ) {
-        if(Array.isArray(mediaProcesses[dialogId])) {
-          for(let pid in mediaProcesses[dialogId]) {
-            process.kill(pid);
-          }
+    if (mediaProcesses) {
+      for (let dialogId in mediaProcesses) {
+        if (Array.isArray(mediaProcesses[dialogId])) {
+          mediaProcesses[dialogId].forEach(function (mediaProcess) {
+            process.kill(mediaProcess.pid);
+          });
         }
       }
-    } 
+    }
   };
 
 
