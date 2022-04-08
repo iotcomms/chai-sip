@@ -448,7 +448,7 @@ module.exports = function (chai, utils, sipStack) {
       }
 
       let contactObj = {
-        uri: "sip:"+contactUser+"@" + ipAddress + ":" + sipParams.port + ";transport="+sipParams.transport,
+        uri: "sip:"+contactUser+"@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport="+sipParams.transport,
         params: {}  
       };
    
@@ -589,7 +589,7 @@ module.exports = function (chai, utils, sipStack) {
           "call-id": req.headers["call-id"],
           "Min-SE": 900,
           cseq: { method: "INVITE", seq: seqVal },
-          contact: [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + sipParams.port + ";transport=" + sipParams.transport }],
+          contact: [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }],
         }
       };
 
@@ -665,7 +665,7 @@ module.exports = function (chai, utils, sipStack) {
           from: from,
           "call-id": req.headers["call-id"],
           cseq: { method: "INVITE", seq: seqVal },
-          contact: [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + sipParams.port + ";transport=" + sipParams.transport }],
+          contact: [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }],
         }
       };
 
@@ -894,7 +894,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
 
-      ack.headers.contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + sipParams.port + ";transport=" + sipParams.transport }],
+      ack.headers.contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }],
 
 
         l.verbose("Send ACK reply", JSON.stringify(ack, null, 2));
@@ -1227,7 +1227,7 @@ module.exports = function (chai, utils, sipStack) {
                 "a=sendrecv\r\n";
             }
             resp.headers["content-type"] = "application/sdp";
-            resp.headers["contact"] = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + sipParams.port + ";transport=" + sipParams.transport }];
+            resp.headers["contact"] = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }];
             resp.headers["record-route"] = rq.headers["record-route"];
             remoteUri = resp.headers["contact"];
 
@@ -1317,7 +1317,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
 
-        headers.contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + sipParams.port + ";transport=" + sipParams.transport, params: { "+sip.src": "" } }];
+        headers.contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport, params: { "+sip.src": "" } }];
 
         headers.require = "siprec";
         headers.accept = "application/sdp, application/rs-metadata";
