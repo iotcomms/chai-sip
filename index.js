@@ -263,7 +263,7 @@ module.exports = function (chai, utils, sipStack) {
       l.verbose("Send pcap to ", ip, "listen on port ", sipParams.rtpPort);
 
       var gstStr;
-      gstStr = "-m udpsrc port=" + sipParams.rtpPort + " ! fakesink filesrc name=" + dialogId + " location=" + pcapFile + " ! pcapparse  ! capsfilter caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
+      gstStr = "filesrc name=" + dialogId + " location=" + pcapFile + " ! pcapparse  ! capsfilter caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
       l.debug("Will send pcap to " + ip + ":" + sdpMedia.port);
 
 
@@ -289,7 +289,7 @@ module.exports = function (chai, utils, sipStack) {
         //l.debug("stdout:",stdout);
         //l.debug("stderr:",stderr);
       });
-      l.verbose("RTP pacap playing, pid ", dialogId);
+      l.verbose("RTP pcap playing, pid ", pid);
       if (!mediaProcesses[dialogId]) {
         mediaProcesses[dialogId] = [];
       }
@@ -897,7 +897,7 @@ module.exports = function (chai, utils, sipStack) {
       ack.headers.contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }],
 
 
-        l.verbose("Send ACK reply", JSON.stringify(ack, null, 2));
+      l.verbose("Send ACK reply", JSON.stringify(ack, null, 2));
 
 
       mySip.send(ack);
