@@ -136,6 +136,8 @@ module.exports = function (chai, utils, sipStack) {
     var onRefreshFinalResponse;
     var lateOffer;
     var dropAck;
+    var ackDelay=0;
+    var useTelUri=false;
     var expirationTimers = {};
     var sipParams = {};
 
@@ -214,7 +216,7 @@ module.exports = function (chai, utils, sipStack) {
       //opus
       var gstArr = gstStr.split(" ");
 
-      l.verbose("gstArr", JSON.stringify(gstArr));
+      l.debug("gstArr", JSON.stringify(gstArr));
       //var packetSize = 172;//sdp.media[0].ptime*8;
       //var pid =exec(ffmpeg.path + " -stream_loop -1 -re  -i "+ prompt +" -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn  -acodec pcm_alaw -f rtp rtp://" + ip + ":" + sdpMedia.port , (err, stdout, stderr) => {
       var pid = execFile("gst-launch-1.0", gstArr, (err) => {
@@ -289,7 +291,7 @@ module.exports = function (chai, utils, sipStack) {
         //l.debug("stdout:",stdout);
         //l.debug("stderr:",stderr);
       });
-      l.verbose("RTP pcap playing, pid ", pid);
+      l.debug("RTP pcap playing, pid ", pid);
       if (!mediaProcesses[dialogId]) {
         mediaProcesses[dialogId] = [];
       }
@@ -702,7 +704,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
       mySip.send(reinvite, (rs) => {
-        let ackDelay = params.ackDelay || 0;
+        ackDelay = params.ackDelay || 0;
         l.verbose("Received reinvite response", JSON.stringify(rs, null, 2), "ackDelay", ackDelay);
         if (callback) {
           l.verbose("Call reInvite callback");
@@ -723,7 +725,7 @@ module.exports = function (chai, utils, sipStack) {
         }
 
 
-        setTimeout(() => { sendAck(rs, lateOfferSdp); }, ackDelay * 1000);
+        sendAck(rs, lateOfferSdp);
 
 
       });
@@ -898,9 +900,12 @@ module.exports = function (chai, utils, sipStack) {
 
 
       l.verbose("Send ACK reply", JSON.stringify(ack, null, 2));
+      if(ackDelay) {
+        l.info("Using ackDelay",ackDelay);
+      }
 
 
-      mySip.send(ack);
+      setTimeout(() => { mySip.send(ack);},ackDelay * 1000);
 
     }
     function handle200(rs, disableMedia = false) {
@@ -1084,6 +1089,27 @@ module.exports = function (chai, utils, sipStack) {
         }, sessionExpires * 1000 / 2);
       }
     }
+
+    function convertToTelUri(headerValue) {
+      console.log("convertToTelUri",headerValue);
+      let converted = headerValue;
+      if(headerValue && headerValue.uri){
+        let parsed = sip.parseUri(headerValue.uri);
+        console.log("parsed tel:",parsed);
+        if(parsed.schema=="sip") {
+          parsed.schema="tel";
+          delete parsed.host;
+          converted = sip.stringifyUri(parsed);
+        }
+
+      }
+
+
+
+      return converted;
+    }
+
+
     function sendRequest(rq, callback, provisionalCallback, disableMedia = false) {
       if (sessionExpires) {
         rq.headers["session-expires"] = sessionExpires;
@@ -1091,6 +1117,11 @@ module.exports = function (chai, utils, sipStack) {
           rq.headers["session-expires"] += ";refresher=uac";
         }
         rq.headers.supported = "timer";
+      }
+      console.log("useTelUri",useTelUri);
+      if(useTelUri) {
+        rq.headers.to = convertToTelUri(rq.headers.to);
+        rq.headers.from = convertToTelUri(rq.headers.from);
       }
 
       l.verbose("Sending");
@@ -1294,6 +1325,8 @@ module.exports = function (chai, utils, sipStack) {
 
           lateOffer = params.lateOffer;
           dropAck = params.dropAck;
+          ackDelay = params.ackDelay;
+          useTelUri = params.useTelUri;
         }
 
         request = makeRequest("INVITE", destination, headers, contentType, body);
