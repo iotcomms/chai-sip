@@ -1099,7 +1099,10 @@ module.exports = function (chai, utils, sipStack) {
         if(parsed.schema=="sip") {
           parsed.schema="tel";
           delete parsed.host;
+          parsed.params = headerValue.params;
           converted = sip.stringifyUri(parsed);
+          
+
         }
 
       }
