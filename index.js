@@ -1249,7 +1249,7 @@ module.exports = function (chai, utils, sipStack) {
             }
 
             resp = sip.makeResponse(rq, 200, "OK");
-            if (!resp.content) {
+            if (!resp.content && rq.method == "INVITE") {
               resp.content = "v=0\r\n" +
                 "o=- " + rstring() + " " + rstring() + " IN IP4 " + sipParams.rtpAddress + "\r\n" +
                 "s=-\r\n" +
@@ -1271,7 +1271,7 @@ module.exports = function (chai, utils, sipStack) {
           mySip.send(resp);
 
           //Media for incoming request
-          if (rq.content && sipParams.disableMedia != true && (resp.status == 200 || rq.method == "ACK")) {
+          if (rq.content && rq.method == "INVITE" && sipParams.disableMedia != true && (resp.status == 200 || rq.method == "ACK")) {
             playIncomingReqMedia(rq);
           }
           return;
