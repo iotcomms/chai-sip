@@ -39,6 +39,9 @@ if (process.env.useMediatool) {
     mediatool.on("serverStarted", () => {
       l.verbose("mediatool started");
     });
+
+   
+
     mediatool.start();
     l.verbose("chai-sip started mediatool");
   }
@@ -48,6 +51,8 @@ if (process.env.useMediatool) {
 // interact with a identical code line in mediatool.
 
 global.__basedir = __dirname;
+
+/// end warning
 
 module.exports = function (chai, utils, sipStack) {
 
@@ -140,6 +145,7 @@ module.exports = function (chai, utils, sipStack) {
     var useTelUri=false;
     var expirationTimers = {};
     var sipParams = {};
+    var dtmfCallback = params.dtmfCallback;
 
     sipParams = params;
     sipParams.logger = {
@@ -350,6 +356,13 @@ module.exports = function (chai, utils, sipStack) {
 
           client.on("promptPlayed", (params) => {
             l.verbose("Prompt playout complete", JSON.stringify(params));
+          });
+
+          client.on("dtmf", (args) => {
+            l.verbose("mediatool dtmfclient got dtmf",args);
+            if(dtmfCallback) {
+              dtmfCallback(args);
+            }
           });
 
           mediaclient[dialogId] = client;
