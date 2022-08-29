@@ -311,73 +311,77 @@ module.exports = function (chai, utils, sipStack) {
     }
 
     function playMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
-
-      if (mediaclient[dialogId]) {
-        l.warn("Media already playing");
-        return;
-      }
-      if (process.env.useMediatool) {
-        l.verbose("playMedia called, using mediatool", dialogId, prompt);
-
-        var ip;
-        if (sdpMedia.connection) {
-          ip = sdpMedia.connection.ip;
-        } else {
-          ip = sdpOrigin;
-        }
-
-        if (ip == "0.0.0.0") {
-          l.verbose("Got hold SDP, not playing media");
+      return new Promise( (resolve)=> {
+        if (mediaclient[dialogId]) {
+          l.warn("Media already playing");
+          resolve();
           return;
         }
+        if (process.env.useMediatool) {
+          l.verbose("playMedia called, using mediatool", dialogId, prompt);
 
-        var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt };
-        mediatool.createPipeline(msparams, (client) => {
+          var ip;
+          if (sdpMedia.connection) {
+            ip = sdpMedia.connection.ip;
+          } else {
+            ip = sdpOrigin;
+          }
+
+          if (ip == "0.0.0.0") {
+            l.verbose("Got hold SDP, not playing media");
+            resolve();
+            return;
+          }
+
+          var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt };
+          mediatool.createPipeline(msparams, (client,localPort) => {
 
 
 
-          client.on("pipelineStarted", () => {
-            l.verbose("IVR pipelineStarted");
+            client.on("pipelineStarted", () => {
+              l.verbose("dtmfclient pipelineStarted");
+            });
+
+            client.on("error", (err) => {
+              l.error("dtmfclient error", err);
+            });
+
+
+            client.on("stopped", (params) => {
+              l.verbose("dtmfclient mediatool client stopped", JSON.stringify(params));
+            });
+
+            client.on("rtpTimeout", (params) => {
+              l.verbose("Got rtpTimeout event for ", params, ", will stop IVR with timeoutreason");
+            });
+
+
+            client.on("promptPlayed", (params) => {
+              l.verbose("Prompt playout complete", JSON.stringify(params));
+            });
+
+            client.on("dtmf", (args) => {
+              l.verbose("mediatool dtmfclient got dtmf",args);
+              if(dtmfCallback) {
+                dtmfCallback(args);
+              }
+            });
+
+            mediaclient[dialogId] = client;
+            currentMediaclient = client;
+
+            mediaclient[dialogId].start();
+            resolve(localPort);
+
           });
 
-          client.on("error", (err) => {
-            l.error("IVR error", err);
-          });
-
-
-          client.on("stopped", (params) => {
-            l.verbose("IVR mediatool client stopped", JSON.stringify(params));
-          });
-
-          client.on("rtpTimeout", (params) => {
-            l.verbose("Got rtpTimeout event for ", params, ", will stop IVR with timeoutreason");
-          });
-
-
-          client.on("promptPlayed", (params) => {
-            l.verbose("Prompt playout complete", JSON.stringify(params));
-          });
-
-          client.on("dtmf", (args) => {
-            l.verbose("mediatool dtmfclient got dtmf",args);
-            if(dtmfCallback) {
-              dtmfCallback(args);
-            }
-          });
-
-          mediaclient[dialogId] = client;
-          currentMediaclient = client;
-
-          mediaclient[dialogId].start();
-
-        });
 
 
 
-
-      } else {
-        playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
-      }
+        } else {
+          playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
+        }
+      });
     }
 
     function gotFinalResponse(response, callback) {
@@ -538,6 +542,7 @@ module.exports = function (chai, utils, sipStack) {
     }
 
     function playIncomingReqMedia(rq) {
+      let lp;
       if (!rq.content)
         return;
       var sdp = transform.parse(rq.content);
@@ -548,17 +553,18 @@ module.exports = function (chai, utils, sipStack) {
 
 
         if (sdp.media[0].type == "audio") {
-          playMedia(id, sdp.media[0], sdp.origin.address, prompt0);
+          lp = playMedia(id, sdp.media[0], sdp.origin.address, prompt0);
         }
 
         if (sdp.media.length > 1) {
           if (sdp.media[1].type == "audio") {
-            playMedia(id, sdp.media[1], sdp.origin.address, prompt1);
+            lp = playMedia(id, sdp.media[1], sdp.origin.address, prompt1);
 
           }
 
 
         }
+        return lp;
 
       } else {
         l.verbose("Media disabled");
@@ -1199,7 +1205,7 @@ module.exports = function (chai, utils, sipStack) {
       sipParams.publicAddress = ip.address();
     }
     try {
-      sip.start(sipParams, function (rq) {
+      sip.start(sipParams, async function (rq) {
         l.debug("Received request", rq);
 
         if (rq.method == "BYE") {
@@ -1233,8 +1239,14 @@ module.exports = function (chai, utils, sipStack) {
               }
             }
 
+            let localPort = sipParams.rtpPort
 
-            resp = requestCallback(rq);
+            if (rq.content && (rq.method == "INVITE" || rq.method == "ACK") && sipParams.disableMedia != true ) {
+              localPort = await playIncomingReqMedia(rq);
+              l.verbose("re-invite response will use localPort",localPort)
+            }
+
+            resp = requestCallback(rq,localPort);
             l.debug("requestCallback resp", resp);
             if (rq.method == "INVITE" && !rq.headers.to.params.tag) {
               rq.headers.to.params.tag = rstring();
@@ -1261,6 +1273,8 @@ module.exports = function (chai, utils, sipStack) {
               ipAddress = sipParams.publicAddress;
             }
 
+           
+
             resp = sip.makeResponse(rq, 200, "OK");
             if (!resp.content && rq.method == "INVITE") {
               resp.content = "v=0\r\n" +
@@ -1268,7 +1282,7 @@ module.exports = function (chai, utils, sipStack) {
                 "s=-\r\n" +
                 "c=IN IP4 " + sipParams.rtpAddress + "\r\n" +
                 "t=0 0\r\n" +
-                "m=audio " + sipParams.rtpPort + " RTP/AVP 0\r\n" +
+                "m=audio " + localPort + " RTP/AVP 0\r\n" +
                 "a=rtpmap:0 PCMU/8000\r\n" +
                 "a=ptime:20\r\n" +
                 "a=sendrecv\r\n";
@@ -1284,9 +1298,7 @@ module.exports = function (chai, utils, sipStack) {
           mySip.send(resp);
 
           //Media for incoming request
-          if (rq.content && rq.method == "INVITE" && sipParams.disableMedia != true && (resp.status == 200 || rq.method == "ACK")) {
-            playIncomingReqMedia(rq);
-          }
+       
           return;
 
         }
