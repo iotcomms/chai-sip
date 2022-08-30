@@ -32,8 +32,10 @@
     "eslint": "^6.3.0",
     "ip": "^1.1.5",
     "jshint": "^2.10.2",
+    "make-synchronous": "^1.0.0",
     "sdp-transform": "^2.5.0",
     "sip": "^0.0.5",
+    "synckit": "^0.8.4",
     "winston": "^2.4.0"
   },
   "devDependencies": {

@@ -1,28 +1,32 @@
 {
-    "env": {
-        "es6": true,
-        "node": true
-    },
-    "extends": "eslint:recommended",
-    "parserOptions": {
-        "sourceType": "module"
-    },
-    "rules": {
-        "indent": [
-            "error",
-            2
-        ],
-        "linebreak-style": [
-            "error",
-            "unix"
-        ],
-        "quotes": [
-            "error",
-            "double"
-        ],
-        "semi": [
-            "error",
-            "always"
-        ]
-    }
+  "parserOptions": {
+    "ecmaVersion": 2018,
+    "sourceType": "module"
+  },
+
+  "plugins": [
+    "security",
+    "cypress",
+    "cucumber"
+  ],
+
+  "env": {
+    "es6": true,
+    "node": true,
+    "mocha": true,
+    "cypress/globals": true
+  },
+
+  "extends": ["eslint:recommended","plugin:security/recommended"],
+
+  "rules": {
+    "security/detect-object-injection" : "off",
+    "security/detect-non-literal-fs-filename" : "off",
+    "cucumber/no-restricted-tags": [2, "wip", "only"],
+    "no-unused-expressions" : "warn",
+    "indent": ["error", 2],
+    "linebreak-style": ["error", "unix"],
+    "quotes": ["error", "double"],
+    "semi": ["error", "always"]
+  }
 }
