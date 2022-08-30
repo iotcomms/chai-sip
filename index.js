@@ -815,7 +815,7 @@ module.exports = function (chai, utils, sipStack) {
 
       l.verbose("Send BYE request", JSON.stringify(bye, null, 2));
 
-      var id = [req.headers["call-id"]].join(":");
+      var id = req.headers["call-id"];
 
 
       request = bye;
@@ -966,7 +966,7 @@ module.exports = function (chai, utils, sipStack) {
       l.debug("200 resp", JSON.stringify(rs, null, 2));
 
 
-      var id = [rs.headers["call-id"]].join(":");
+      var id = rs.headers["call-id"];
       l.verbose("200 response for ", id);
 
       if (rs.headers["content-type"] == "application/sdp") {
@@ -1075,6 +1075,7 @@ module.exports = function (chai, utils, sipStack) {
           handle200(rs);
           gotFinalResponse(rs, callback);
         } else if (rs.status > 200) {
+          stopMedia(rs.headers["call-id"]);
           gotFinalResponse(rs, callback);
           //sendAck(rs);
         }
@@ -1184,6 +1185,7 @@ module.exports = function (chai, utils, sipStack) {
             if (rq.method == "INVITE") {
               //sendAck(rs);
             }
+            stopMedia(rs.headers["call-id"]);
             gotFinalResponse(rs, callback);
 
             return;
@@ -1218,7 +1220,7 @@ module.exports = function (chai, utils, sipStack) {
       sip.start(sipParams, async function (rq) {
         l.debug("Received request", rq);
 
-        if (rq.method == "BYE") {
+        if (rq.method == "BYE" || rq.method == "CANCEL") {
           let id = rq.headers["call-id"];
           stopMedia(id);
         }
@@ -1447,7 +1449,7 @@ module.exports = function (chai, utils, sipStack) {
           request.content = body;
         }
 
-        var id1 = [request.headers["call-id"]].join(":");
+        var id1 = request.headers["call-id"];
         l.verbose("media: Got reinvite", id1);
         stopMedia(id1);
 
@@ -1506,6 +1508,7 @@ module.exports = function (chai, utils, sipStack) {
         l.verbose("media: stopMedia for", id);
         if (mediaclient[id]) {
           mediaclient[id].stop();
+          delete mediaclient[id];
         } else {
           if (mediaProcesses[id]) {
             stopMedia(id);
@@ -1524,8 +1527,8 @@ module.exports = function (chai, utils, sipStack) {
         if(mediaclient) {
           let keys = Object.keys(mediaclient);
           if(keys.length>0) {
-            l.error("mediaclient still running",JSON.stringify(mediaclient))
-            throw new Error("mediaclient still running",mediaclient)
+            l.error("mediaclient still running",keys);
+            throw new Error("mediaclient still running",mediaclient);
           }
         }
 
