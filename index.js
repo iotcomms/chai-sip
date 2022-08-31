@@ -109,7 +109,11 @@ module.exports = function (chai, utils, sipStack) {
       for (let dialogId in mediaProcesses) {
         if (Array.isArray(mediaProcesses[dialogId])) {
           mediaProcesses[dialogId].forEach(function (mediaProcess) {
-            process.kill(mediaProcess.pid);
+            try {
+              process.kill(mediaProcess.pid);
+            } catch(e) {
+              l.warn("Could not kill mediaProcess.pid",mediaProcess.pid);
+            }
           });
         }
       }
@@ -315,6 +319,11 @@ module.exports = function (chai, utils, sipStack) {
     function createPipeline(dialogId) {
       return new Promise( (resolve) => {
       if (process.env.useMediatool) {
+
+        if(mediaclient[dialogId]) {
+          l.error("Mediaclient already running for dialogId",dialogId);
+          throw new Error("Mediaclient already running for dialogId",dialogId);
+        }
         l.verbose("createPipeline called, using mediatool", dialogId);
         var msparams = { pipeline: "dtmfclient", dialogId: dialogId};
           mediatool.createPipeline(msparams, (client,localPort) => {
@@ -553,7 +562,7 @@ module.exports = function (chai, utils, sipStack) {
         return;
       var sdp = transform.parse(rq.content);
       if (sdp && !(sipParams.disableMedia)) {
-        var id = [rq.headers["call-id"]].join(":");
+        var id = rq.headers["call-id"];
 
         l.verbose("media: playIncomingReqMedia for ", rq.method, id);
         if(process.env.useMediatool) {
@@ -1202,8 +1211,9 @@ module.exports = function (chai, utils, sipStack) {
               rqCopy.headers.to = rs.headers.to;
               startSessionRefresher(rqCopy, rs.headers["call-id"], rs.headers.cseq.seq);
             }
-
-            handle200(rs, disableMedia);
+            if(rs.status==200) {
+              handle200(rs, disableMedia);
+            }
             gotFinalResponse(rs, callback);
 
           }
