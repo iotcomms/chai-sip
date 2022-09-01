@@ -947,7 +947,7 @@ module.exports = function (chai, utils, sipStack) {
     }
     function handle200(rs, disableMedia = false) {
       // yes we can get multiple 2xx response with different tags
-      if (rs.cseq.method != "INVITE") {
+      if (rs.headers.cseq.method != "INVITE") {
         return;
       }
       l.debug("call " + rs.headers["call-id"] + " answered with tag " + rs.headers.to.params.tag);
