@@ -150,6 +150,7 @@ module.exports = function (chai, utils, sipStack) {
     var expirationTimers = {};
     var sipParams = {};
     var dtmfCallback = params.dtmfCallback;
+    var requestReady = false;
 
     sipParams = params;
     sipParams.logger = {
@@ -1341,7 +1342,8 @@ module.exports = function (chai, utils, sipStack) {
     mySip = clone(sip);
     return {
       onFinalResponse: function (callback, provisionalCallback) {
-        if(request) {
+        if(requestReady) {
+          requestReady=false;
           sendRequest(request, callback, provisionalCallback);
         } else {
           setTimeout(()=>{this.onFinalResponse(callback, provisionalCallback);},100);
@@ -1353,16 +1355,19 @@ module.exports = function (chai, utils, sipStack) {
         let uri = "sip:" + user + "@" + destination;
         request.headers.from = { uri: uri, params: { tag: rstring() } };
         request.headers.to = { uri: uri };
+        requestReady=true;
         sendRequest(request, callback, provisionalCallback);
       },
       options: function (destination, headers = null, contentType = null, body = null) {
         request = makeRequest("OPTIONS", destination, headers, contentType, body);
+        requestReady=true;
         return this;
       },
       playIncomingReqMedia: function (rq) {
         playIncomingReqMedia(rq);
       },
       invite: function (destination, headers, contentType, body, params) {
+        requestReady = false;
         l.info("sip invite called",process.env.useMediatool);
         /*if(!body) {
           contentType = "application/sdp";
@@ -1395,6 +1400,7 @@ module.exports = function (chai, utils, sipStack) {
           l.verbose("reqParams",reqParams);
 
           request = makeRequest("INVITE", destination, headers, contentType, body,null,reqParams);
+          requestReady = true;
         })();
         return this;
       },
@@ -1435,6 +1441,7 @@ module.exports = function (chai, utils, sipStack) {
         }
 
         request = makeRequest("INVITE", destination, headers, ct, body);
+        requestReady=true;
         return this;
       },
       reInvite: function (contentType, body, p0, p1, callback, provisionalCallback, disableMedia = false) {
@@ -1468,6 +1475,7 @@ module.exports = function (chai, utils, sipStack) {
       },
       message: function (destination, headers, contentType, body) {
         request = makeRequest("MESSAGE", destination, headers, contentType, body);
+        requestReady=true;
         return this;
       },
       waitForRequest: function (reqHandler) {
@@ -1507,6 +1515,7 @@ module.exports = function (chai, utils, sipStack) {
       },
       sendCancel: function (req, callback) {
         request = sendCancel(req, callback);
+        requestReady=true;
         return this;
       },
       lastRequest: function () {
