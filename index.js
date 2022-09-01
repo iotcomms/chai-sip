@@ -321,8 +321,7 @@ module.exports = function (chai, utils, sipStack) {
       if (process.env.useMediatool) {
 
         if(mediaclient[dialogId]) {
-          l.error("Mediaclient already running for dialogId",dialogId);
-          throw new Error("Mediaclient already running for dialogId",dialogId);
+          l.info("Mediaclient already running for dialogId",dialogId);
         }
         l.verbose("createPipeline called, using mediatool", dialogId);
         var msparams = { pipeline: "dtmfclient", dialogId: dialogId};
