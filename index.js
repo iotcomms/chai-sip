@@ -564,15 +564,19 @@ module.exports = function (chai, utils, sipStack) {
       if (sdp && !(sipParams.disableMedia)) {
         var id = rq.headers["call-id"];
 
-        l.verbose("media: playIncomingReqMedia for ", rq.method, id);
+        l.verbose("media: playIncomingReqMedia for ", rq.method, id,sipParams.mediaFile);
         if(process.env.useMediatool) {
           lp =  await createPipeline(id);
         }
         l.verbose("lp",lp);
 
+        let mediaFile = prompt0;
 
+        if(sipParams.mediaFile) {
+          mediaFile = sipParams.mediaFile;
+        }
         if (sdp.media[0].type == "audio") {
-          playMedia(id, sdp.media[0], sdp.origin.address, prompt0);
+          playMedia(id, sdp.media[0], sdp.origin.address, mediaFile);
         }
 
         if (sdp.media.length > 1) {
