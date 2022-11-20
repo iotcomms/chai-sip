@@ -408,6 +408,12 @@ module.exports = function (chai, utils, sipStack) {
     }
 
     function getInviteBody(params = {}) {
+
+      if(params.body) {
+        l.verbose("getInviteBody returning passed body.",params.body)
+        return params.body;
+      }
+
       let rtpAddress = ip.address();
 
       if (sipParams.rtpAddress) {
@@ -713,7 +719,7 @@ module.exports = function (chai, utils, sipStack) {
         }
       };
 
-      if ((params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer != true) {
+      if ((params.body || params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer != true) {
         reinvite.content = getInviteBody(params);
         req.headers["content-type"] = "application/sdp";
       }
@@ -761,7 +767,7 @@ module.exports = function (chai, utils, sipStack) {
 
         console.log("sip.send ack params", params);
 
-        if ((params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer == true) {
+        if ((params.body || params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer == true) {
           lateOfferSdp = getInviteBody(params);
           console.log("lateOfferSdp", lateOfferSdp);
         }
