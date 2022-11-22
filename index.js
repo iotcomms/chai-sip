@@ -1403,6 +1403,10 @@ module.exports = function (chai, utils, sipStack) {
 
           let callId = rstring() + Date.now().toString();
           let reqParams = {callId:callId};
+          if(params&&params.codec) {
+            reqParams.codec = params.codec;
+          }
+
           if(process.env.useMediatool) {
             reqParams.rtpPort = await createPipeline(callId);
           }
