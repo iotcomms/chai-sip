@@ -265,6 +265,7 @@ module.exports = function (chai, utils, sipStack) {
 
     function playPcapFile(dialogId, sdpMedia, sdpOrigin, pcapFile) {
       l.verbose("media: play pcapFile for", JSON.stringify(sdpMedia, null, 2));
+      sipParams.pcapFile = pcapFile;
       var ip;
       if (sdpMedia.connection) {
         ip = sdpMedia.connection.ip;
@@ -275,7 +276,7 @@ module.exports = function (chai, utils, sipStack) {
       l.verbose("Send pcap to ", ip, "listen on port ", sipParams.rtpPort);
 
       var gstStr;
-      gstStr = "filesrc name=" + dialogId + " location=" + pcapFile + " ! pcapparse  ! capsfilter caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
+      gstStr = "filesrc name=" + dialogId + " location=" + pcapFile + " ! pcapparse ! capsfilter caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
       l.debug("Will send pcap to " + ip + ":" + sdpMedia.port);
 
 
@@ -291,17 +292,17 @@ module.exports = function (chai, utils, sipStack) {
 
         if (err) {
           if (err.signal != "SIGTERM") {
-            l.error("Could not execute ffmpeg", JSON.stringify(err), null, 2);
+            l.error("Could not execute gst-launch-1.0", JSON.stringify(err), null, 2);
           }
           return;
         }
-        l.debug("Completed ffmpeg");
+        l.debug("Completed gst-launch-1.0");
 
         // the *entire* stdout and stderr (buffered)
-        //l.debug("stdout:",stdout);
-        //l.debug("stderr:",stderr);
+        l.debug("gst-launch-1.0 stdout:",stdout);
+        l.debug("gst-launch-1.0 stderr:",stderr);
       });
-      l.debug("RTP pcap playing, pid ", pid);
+      l.debug("RTP pcap playing, pid ");
       if (!mediaProcesses[dialogId]) {
         mediaProcesses[dialogId] = [];
       }
@@ -371,6 +372,8 @@ module.exports = function (chai, utils, sipStack) {
     }
 
     function playMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
+
+   
       if (process.env.useMediatool) {
         l.verbose("playMedia called, using mediatool", dialogId, prompt);
 
@@ -1273,7 +1276,7 @@ module.exports = function (chai, utils, sipStack) {
 
             let localPort = sipParams.rtpPort
 
-            if (rq.content && (rq.method == "INVITE" || rq.method == "ACK") && sipParams.disableMedia != true ) {
+            if (rq.content && (rq.method == "INVITE" || rq.method == "ACK") && sipParams.disableMedia != true && !(sipParams.reInvitePcapFile &&  rq.headers.to.params.tag) ) {
               localPort = await playIncomingReqMedia(rq);
               l.verbose("re-invite response will use localPort",localPort)
             }
@@ -1523,6 +1526,9 @@ module.exports = function (chai, utils, sipStack) {
       playPcapFile: playPcapFile,
       setPcapFile: function (file) {
         sipParams.pcapFile = file;
+      },
+      setReInvitePcapFile: function (file) {
+        sipParams.reInvitePcapFile = file;
       },
       send: function (req) {
         return mySip.send(req);
