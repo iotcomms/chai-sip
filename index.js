@@ -299,8 +299,8 @@ module.exports = function (chai, utils, sipStack) {
         l.debug("Completed gst-launch-1.0");
 
         // the *entire* stdout and stderr (buffered)
-        l.debug("gst-launch-1.0 stdout:",stdout);
-        l.debug("gst-launch-1.0 stderr:",stderr);
+        //l.debug("gst-launch-1.0 stdout:",stdout);
+        //l.debug("gst-launch-1.0 stderr:",stderr);
       });
       l.debug("RTP pcap playing, pid ");
       if (!mediaProcesses[dialogId]) {
