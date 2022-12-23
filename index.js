@@ -257,6 +257,7 @@ module.exports = function (chai, utils, sipStack) {
 
     function sendDTMF(digit,duration=80.0) {
       if (currentMediaclient) {
+        l.verbose("currentMediaclient localPort",currentMediaclient.localPort)
         currentMediaclient.sendDTMF(digit,duration);
       } else {
         l.error("chai-sip is not configured with mediatool media component. This is not implemented without it.");
@@ -362,6 +363,7 @@ module.exports = function (chai, utils, sipStack) {
 
             mediaclient[dialogId] = client;
             currentMediaclient = client;
+            client.localPort = localPort;
             l.verbose("createPipeline localPort",localPort);
             resolve(localPort)
           });
@@ -390,7 +392,12 @@ module.exports = function (chai, utils, sipStack) {
           return;
         }
 
-          var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt };
+        let remoteCodec = "PCMA";
+        if(sdpMedia.rtp && sdpMedia.rtp[0] && sdpMedia.rtp[0].codec=="PCMU") {
+          remoteCodec="PCMU";
+        }
+
+          var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec };
           mediaclient[dialogId].start(msparams);
         } else {
           playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
@@ -1010,11 +1017,17 @@ module.exports = function (chai, utils, sipStack) {
 
           l.verbose("media: 200 response playMedia for ", id);
 
+
+     
           if (sipParams.pcapFile) {
+            let delay = 2000;
+            if(sipParams.pcapDelay) {
+              delay = delay + sipParams.pcapDelay * 1000;
+            }
             setTimeout(() => {
-              l.verbose("Starting playPcapFile");
+              l.verbose("Starting playPcapFile",sipParams.pcapFile);
               playPcapFile(id, sdp.media[0], sdp.origin.address, sipParams.pcapFile);
-            }, 2000);
+            }, delay);
             return;
           }
 
@@ -1289,7 +1302,7 @@ module.exports = function (chai, utils, sipStack) {
 
             let localPort = sipParams.rtpPort
 
-            if (rq.content && (rq.method == "INVITE" || rq.method == "ACK") && sipParams.disableMedia != true && !(sipParams.reInvitePcapFile &&  rq.headers.to.params.tag) ) {
+            if (rq.content && (rq.method == "INVITE" || rq.method == "ACK") && sipParams.disableMedia != true && !(sipParams.reInvitePcapFile &&  rq.headers.to.params.tag) && !(sipParams.pcapFile &&  !rq.headers.to.params.tag) ) {
               localPort = await playIncomingReqMedia(rq);
               l.verbose("re-invite response will use localPort",localPort)
             }
@@ -1342,8 +1355,10 @@ module.exports = function (chai, utils, sipStack) {
 
 
           }
-
-          mySip.send(resp);
+          setTimeout(() => {
+            mySip.send(resp); 
+          }, 500);
+          
 
           //Media for incoming request
        
@@ -1541,8 +1556,9 @@ module.exports = function (chai, utils, sipStack) {
 
       },
       playPcapFile: playPcapFile,
-      setPcapFile: function (file) {
+      setPcapFile: function (file,pcapDelay) {
         sipParams.pcapFile = file;
+        sipParams.pcapDelay = pcapDelay;
       },
       setReInvitePcapFile: function (file) {
         sipParams.reInvitePcapFile = file;
