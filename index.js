@@ -724,7 +724,12 @@ module.exports = function (chai, utils, sipStack) {
 
       if ((params.body || params.codec || params.rtpAddress || params.rtpPort) && params.lateOffer != true) {
         reinvite.content = getInviteBody(params);
-        req.headers["content-type"] = "application/sdp";
+        if (params.contentType != null) {
+          reinvite.headers["content-type"] = params.contentType;
+        }
+        else {
+          reinvite.headers["content-type"] = "application/sdp";
+        }
       }
 
 
@@ -1011,6 +1016,14 @@ module.exports = function (chai, utils, sipStack) {
               playPcapFile(id, sdp.media[0], sdp.origin.address, sipParams.pcapFile);
             }, 2000);
             return;
+          }
+
+          if (sipParams.callerPcap && sipParams.calleePcap) {
+            setTimeout(() => {
+              playPcapFile(id, sdp.media[0], sdp.origin.address, sipParams.callerPcap);
+              playPcapFile(id, sdp.media[1], sdp.origin.address, sipParams.calleePcap);
+            }, 2000);
+            return; 
           }
 
           if (sipParams.mediaFile) {
@@ -1421,10 +1434,14 @@ module.exports = function (chai, utils, sipStack) {
         })();
         return this;
       },
-      inviteSipRec: function (destination, headers, contentType, body) {
+      inviteSipRec: function (destination, headers, contentType, body, params = {}) {
         if (!headers) {
           headers = {};
         }
+
+        sipParams.callerPcap = params.callerPcap;
+        sipParams.calleePcap = params.calleePcap;
+
 
         var ipAddress;
         if (!sipParams.publicAddress) {
