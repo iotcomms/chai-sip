@@ -1284,8 +1284,10 @@ module.exports = function (chai, utils, sipStack) {
         if (rq.method == "INVITE" && rq.headers.to.params.tag) {
           l.verbose("*Got reinvite");
           let id1 = rq.headers["call-id"];
-          stopMedia(id1);
-          l.debug("after stopmedia");
+          if(rq.content) {
+            stopMedia(id1);
+            l.debug("after stopmedia");
+          }
         }
         if (requestCallback) {
           var resp;
@@ -1296,6 +1298,8 @@ module.exports = function (chai, utils, sipStack) {
               }
 
               if (rq.content) {
+                stopMedia(id1);
+                l.debug("after ack stopmedia");
                 //playIncomingReqMedia(rq);
               }
             }
