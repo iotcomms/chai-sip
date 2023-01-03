@@ -1458,8 +1458,24 @@ module.exports = function (chai, utils, sipStack) {
           headers = {};
         }
 
-        sipParams.callerPcap = params.callerPcap;
-        sipParams.calleePcap = params.calleePcap;
+        if (params) {
+          sessionExpires = params.expires;
+          reInviteDisabled = params.reInviteDisabled;
+          refresherDisabled = params.refresherDisabled;
+          refreshUsingUpdate = params.refreshUsingUpdate;
+          updateRefreshBody = params.updateRefreshBody;
+          onRefreshFinalResponse = params.onRefreshFinalResponse;
+
+          lateOffer = params.lateOffer;
+          dropAck = params.dropAck;
+          ackDelay = params.ackDelay;
+          useTelUri = params.useTelUri;
+
+          sipParams.callerPcap = params.callerPcap;
+          sipParams.calleePcap = params.calleePcap;
+        }
+
+
 
 
         var ipAddress;
