@@ -1031,12 +1031,20 @@ module.exports = function (chai, utils, sipStack) {
             return;
           }
 
-          if (sipParams.callerPcap && sipParams.calleePcap) {
-            setTimeout(() => {
-              playPcapFile(id, sdp.media[0], sdp.origin.address, sipParams.callerPcap);
-              playPcapFile(id, sdp.media[1], sdp.origin.address, sipParams.calleePcap);
-            }, 2000);
-            return; 
+          if(sipParams.callerPcap || sipParams.calleePcap) {
+
+            if (sipParams.callerPcap) {
+              setTimeout(() => {
+                playPcapFile(id, sdp.media[0], sdp.origin.address, sipParams.callerPcap);
+              }, 2000);
+            }
+
+            if (sipParams.calleePcap) {
+              setTimeout(() => {
+                playPcapFile(id, sdp.media[1], sdp.origin.address, sipParams.calleePcap);
+              }, 2000);
+            }
+            return;
           }
 
           if (sipParams.mediaFile) {
