@@ -1306,6 +1306,7 @@ module.exports = function (chai, utils, sipStack) {
               }
 
               if (rq.content) {
+                let id1 = rq.headers["call-id"];
                 stopMedia(id1);
                 l.debug("after ack stopmedia");
                 //playIncomingReqMedia(rq);

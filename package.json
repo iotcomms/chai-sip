@@ -40,5 +40,8 @@
   },
   "devDependencies": {
     "lint": "^1.1.2"
+  },
+  "volta": {
+    "node": "16.19.0"
   }
 }
