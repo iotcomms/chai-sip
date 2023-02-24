@@ -373,6 +373,17 @@ module.exports = function (chai, utils, sipStack) {
       });
     }
 
+    function getDtmfPt(sdpMedia) {
+      let dtmfPt;
+      if(sdpMedia && sdpMedia.rtp && Array.isArray(sdpMedia.rtp)) {
+        for(let rtp of sdpMedia.rtp) {
+          if(rtp.codec=="telephone-event") {
+            return rtp.payload;
+          }
+        }
+      }
+    }
+
     function playMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
 
    
@@ -397,7 +408,9 @@ module.exports = function (chai, utils, sipStack) {
           remoteCodec="PCMU";
         }
 
-          var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec };
+          l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2));
+          let remoteDtmfPt = getDtmfPt(sdpMedia);
+          var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
           mediaclient[dialogId].start(msparams);
         } else {
           playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
