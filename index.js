@@ -539,10 +539,19 @@ module.exports = function (chai, utils, sipStack) {
         }
       };
 
+
+
       if(sipParams.displayName) {
         req.headers.from.name = sipParams.displayName;
       }
-   
+
+      if(params.fromHeader) {
+        req.headers.from = params.fromHeader;
+      }
+      if(params.toHeader) {
+        req.headers.to = params.toHeader;
+      }
+
 
       l.debug("req", JSON.stringify(req));
 
@@ -1564,8 +1573,8 @@ module.exports = function (chai, utils, sipStack) {
 
 
       },
-      message: function (destination, headers, contentType, body) {
-        request = makeRequest("MESSAGE", destination, headers, contentType, body);
+      message: function (destination, headers, contentType, body, params = {}) {
+        request = makeRequest("MESSAGE", destination, headers, contentType, body,params);
         requestReady=true;
         return this;
       },
