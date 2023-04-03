@@ -35,7 +35,7 @@ function rstring() { return Math.floor(Math.random() * 1e6).toString(); }
 if (process.env.useMediatool) {
   var Mediatool = require("mediatool");
   if (!mediatool) {
-    mediatool = new Mediatool({rtpStart:30000,rtpEnd:30100});
+    mediatool = new Mediatool({rtpStart:30000,rtpEnd:31000});
     mediatool.on("serverStarted", () => {
       l.verbose("mediatool started");
     });
