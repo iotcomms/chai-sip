@@ -739,6 +739,12 @@ module.exports = function (chai, utils, sipStack) {
         seqVal = req.headers.cseq.seq;
       }
 
+      let contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }];
+
+      if(params.contact) {
+        contact = params.contact;
+      }
+
       var reinvite = {
         method: "INVITE",
         uri: req.headers.contact[0].uri,
@@ -747,7 +753,7 @@ module.exports = function (chai, utils, sipStack) {
           from: from,
           "call-id": req.headers["call-id"],
           cseq: { method: "INVITE", seq: seqVal },
-          contact: [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }],
+          contact: contact,
         }
       };
 
