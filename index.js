@@ -255,10 +255,36 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
-    function sendDTMF(digit,duration=80.0) {
-      if (currentMediaclient) {
+    function setDtmfPt(pt,dialogId) {
+
+      let client;
+      l.verbose("setDtmfPt",dialogId)
+      if(dialogId) {
+        client = mediaclient[dialogId];
+      } else if (currentMediaclient) {
         l.verbose("currentMediaclient localPort",currentMediaclient.localPort)
-        currentMediaclient.sendDTMF(digit,duration);
+        client = currentMediaclient;
+
+      }
+      if(client) {
+        client.setDtmfPt(pt);
+      } else {
+        l.error("chai-sip is not configured with mediatool media component. setDtmfPt is not implemented without it.");
+      }
+
+    }
+
+    function sendDTMF(digit,duration=80.0,dialogId) {
+      let client;
+      if(dialogId) {
+        client = mediaclient[dialogId];
+      } else if (currentMediaclient) {
+        l.verbose("currentMediaclient localPort",currentMediaclient.localPort)
+        client = currentMediaclient;
+
+      }
+      if(client) {
+        client.sendDTMF(digit,duration);
       } else {
         l.error("chai-sip is not configured with mediatool media component. This is not implemented without it.");
       }
@@ -791,6 +817,13 @@ module.exports = function (chai, utils, sipStack) {
 
 
       request = reinvite;
+
+      if(params.disableMedia) {
+        l.verbose("Stopping media for reinvite");
+        var id = req.headers["call-id"];
+        stopMedia(id);
+
+      }
 
 
 
@@ -1666,11 +1699,20 @@ module.exports = function (chai, utils, sipStack) {
         mySip.stop();
 
       },
-      sendDTMF: function (digit,duration) {
+      sendDTMF: function (digit,duration=100.0,dialogId) {
         l.verbose("chai-sip sendDTMF",digit,duration);
-        sendDTMF(digit,duration);
+        sendDTMF(digit,duration,dialogId);
 
       },
+
+      setDtmfPt: function (pt,dialogId) {
+        l.verbose("chai-sip setDtmfPt",pt);
+        setDtmfPt(pt,dialogId);
+
+      }
+
+
+
 
     };
   };
