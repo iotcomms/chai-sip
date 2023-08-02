@@ -639,6 +639,16 @@ module.exports = function (chai, utils, sipStack) {
         if(sipParams.mediaFile) {
           mediaFile = sipParams.mediaFile;
         }
+
+        let rqUser;
+        if(rq.uri) {
+          rqUser = sip.parseUri(rq.uri).user
+        }
+
+        if(sipParams.mediaFileConfig && sipParams.mediaFileConfig[rqUser]) {
+          mediaFile = sipParams.mediaFileConfig[rqUser]
+          l.verbose("Setting mediaFile from mediaFileConfig",mediaFile)
+        }
         if (sdp.media[0].type == "audio") {
           playMedia(id, sdp.media[0], sdp.origin.address, mediaFile);
         }
