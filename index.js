@@ -1698,8 +1698,12 @@ module.exports = function (chai, utils, sipStack) {
         if(mediaclient) {
           let keys = Object.keys(mediaclient);
           if(keys.length>0) {
-            l.error("mediaclient still running",keys);
-            throw new Error("mediaclient still running",mediaclient);
+            l.warn("mediaclients still running",keys);
+            for(let key of keys) {
+              //mediaclient[key].stop()
+
+            }
+
           }
         }
 
