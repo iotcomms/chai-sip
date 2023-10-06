@@ -1627,6 +1627,21 @@ module.exports = function (chai, utils, sipStack) {
         requestReady=true;
         return this;
       },
+      info: function (destination, headers, contentType, body) {
+        request = makeRequest("INFO", destination, headers, contentType, body);
+        requestReady=true;
+        return this;
+      },
+      subscribe: function (destination, headers, contentType, body) {
+        request = makeRequest("SUBSCRIBE", destination, headers, contentType, body);
+        requestReady=true;
+        return this;
+      },
+      notify: function (destination, headers, contentType, body) {
+        request = makeRequest("NOTIFY", destination, headers, contentType, body);
+        requestReady=true;
+        return this;
+      },
       waitForRequest: function (reqHandler) {
         requestCallback = reqHandler;
       },
