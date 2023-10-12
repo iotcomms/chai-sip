@@ -353,7 +353,8 @@ module.exports = function (chai, utils, sipStack) {
           l.info("Mediaclient already running for dialogId",dialogId);
         }
         l.verbose("createPipeline called, using mediatool", dialogId);
-        var msparams = { pipeline: "dtmfclient", dialogId: dialogId};
+        const msparams = {
+          pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId};
           mediatool.createPipeline(msparams, (client,localPort) => {
 
 
@@ -416,14 +417,14 @@ module.exports = function (chai, utils, sipStack) {
       if (process.env.useMediatool) {
         l.verbose("playMedia called, using mediatool", dialogId, prompt);
 
-        var ip;
+        let ip;
         if (sdpMedia.connection) {
           ip = sdpMedia.connection.ip;
         } else {
           ip = sdpOrigin;
         }
 
-        if (ip == "0.0.0.0") {
+        if (ip === "0.0.0.0") {
           l.verbose("Got hold SDP, not playing media");
           resolve();
           return;
@@ -436,7 +437,7 @@ module.exports = function (chai, utils, sipStack) {
 
           l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2));
           let remoteDtmfPt = getDtmfPt(sdpMedia);
-          var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
+          const msparams = { pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
           mediaclient[dialogId].start(msparams);
         } else {
           playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
