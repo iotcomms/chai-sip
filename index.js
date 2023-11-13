@@ -874,8 +874,6 @@ module.exports = function (chai, utils, sipStack) {
 
     }
     function sendBye(req, byecallback) {
-
-
       var to;
       var from;
 
@@ -941,6 +939,77 @@ module.exports = function (chai, utils, sipStack) {
       return bye;
 
     }
+
+    function sendInfoInDialog(req,body,contentType, infocallback) {
+      var to;
+      var from;
+
+      if (req.method) {
+        to = req.headers.from;
+        from = req.headers.to;
+      } else {
+        to = req.headers.to;
+        from = req.headers.from;
+      }
+
+      req.headers.cseq.seq++;
+
+      var info = {
+        method: "INFO",
+        uri: req.headers.contact[0].uri,
+        headers: {
+          to: to,
+          from: from,
+          "call-id": req.headers["call-id"],
+          cseq: { method: "INFO", seq: req.headers.cseq.seq },
+          "content-type":contentType
+        }
+      };
+
+      info.content = body;
+
+      //info.headers["via"] = [req.headers.via[2]];
+
+      if (req.headers["record-route"]) {
+        info.headers["route"] = [];
+        if (req.method) {
+          for (let i = 0; i < req.headers["record-route"].length; i++) {
+            l.debug("Push info rr header", req.headers["record-route"][i]);
+            info.headers["route"].push(req.headers["record-route"][i]);
+          }
+        } else {
+          for (let i = req.headers["record-route"].length - 1; i >= 0; i--) {
+            l.debug("Push info rr header", req.headers["record-route"][i]);
+            info.headers["route"].push(req.headers["record-route"][i]);
+          }
+
+        }
+
+      }
+
+      l.verbose("Send INFO request", JSON.stringify(info, null, 2));
+
+      var id = req.headers["call-id"];
+
+
+      request = info;
+
+
+      mySip.send(info, (rs) => {
+        l.verbose("Received info response", JSON.stringify(rs, null, 2));
+        if (infocallback) {
+          infocallback(rs);
+          l.verbose("INFO response callback called");
+        }
+      });
+
+
+
+      return info;
+
+    }
+
+
     function sendCancel(req, callback) {
       var cancel = {
         method: "CANCEL",
@@ -1633,6 +1702,7 @@ module.exports = function (chai, utils, sipStack) {
         requestReady=true;
         return this;
       },
+
       info: function (destination, headers, contentType, body) {
         request = makeRequest("INFO", destination, headers, contentType, body);
         requestReady=true;
@@ -1663,6 +1733,9 @@ module.exports = function (chai, utils, sipStack) {
       },
       sendReinviteForRequest: function (req, seq, params, callback, ackCallback) {
         sendReinviteForRequest(req, seq, params, callback, ackCallback);
+      },
+      sendInfoInDialog: function (req, body,contentType, infocallback) {
+        sendInfoInDialog(req,body,contentType,infocallback);
       },
       playMedia: playMedia,
       sendUpdateForRequest: function (req, seq) {
