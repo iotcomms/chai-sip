@@ -40,13 +40,13 @@ if (process.env.useMediatool) {
       l.verbose("mediatool started");
     });
 
-   
+
 
     mediatool.start();
     l.verbose("chai-sip started mediatool");
   }
 }
-// Warning! This line has to be in this spot after the 
+// Warning! This line has to be in this spot after the
 // mediatool require since it otherwise might
 // interact with a identical code line in mediatool.
 
@@ -129,10 +129,10 @@ module.exports = function (chai, utils, sipStack) {
     var dialogs = {};
     var request;
     var playing = {};
-  
+
     var prompt0 = __basedir + "/caller.wav";
     var prompt1 = __basedir + "/callee.wav";
-    
+
     var mediaclient = {};
     var currentMediaclient;
     var lastMediaId;
@@ -160,7 +160,7 @@ module.exports = function (chai, utils, sipStack) {
     };
 
 
-    
+
 
     function stopMedia(id) {
       l.verbose("stopMedia called, id", id);
@@ -170,8 +170,8 @@ module.exports = function (chai, utils, sipStack) {
           mediaclient[id].stop();
           delete mediaclient[id];
           return;
-        } 
-      } 
+        }
+      }
       if(mediaProcesses[id]) {
         for(var pid of mediaProcesses[id]) {
           try{
@@ -189,7 +189,7 @@ module.exports = function (chai, utils, sipStack) {
       l.warn("No matching mediaclient for " + id);
     }
 
- 
+
 
     function playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
 
@@ -353,7 +353,8 @@ module.exports = function (chai, utils, sipStack) {
           l.info("Mediaclient already running for dialogId",dialogId);
         }
         l.verbose("createPipeline called, using mediatool", dialogId);
-        var msparams = { pipeline: "dtmfclient", dialogId: dialogId};
+        const msparams = {
+          pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId};
           mediatool.createPipeline(msparams, (client,localPort) => {
 
 
@@ -412,18 +413,18 @@ module.exports = function (chai, utils, sipStack) {
 
     function playMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
 
-   
+
       if (process.env.useMediatool) {
         l.verbose("playMedia called, using mediatool", dialogId, prompt);
 
-        var ip;
+        let ip;
         if (sdpMedia.connection) {
           ip = sdpMedia.connection.ip;
         } else {
           ip = sdpOrigin;
         }
 
-        if (ip == "0.0.0.0") {
+        if (ip === "0.0.0.0") {
           l.verbose("Got hold SDP, not playing media");
           resolve();
           return;
@@ -436,7 +437,7 @@ module.exports = function (chai, utils, sipStack) {
 
           l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2));
           let remoteDtmfPt = getDtmfPt(sdpMedia);
-          var msparams = { pipeline: "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
+          const msparams = { pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
           mediaclient[dialogId].start(msparams);
         } else {
           playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
@@ -533,14 +534,14 @@ module.exports = function (chai, utils, sipStack) {
 
       let contactObj = {
         uri: "sip:"+contactUser+"@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport="+sipParams.transport,
-        params: {}  
+        params: {}
       };
-   
+
       if(params.regId && params.instanceId) {
         contactObj.params["+sip.instance"] = `"${params.instanceId}"`;
         contactObj.params["reg-id"] = params.regId;
       }
-   
+
       if(params.qValue) {
         contactObj.params.q = params.qValue;
       }
@@ -748,17 +749,17 @@ module.exports = function (chai, utils, sipStack) {
       return update;
 
     }
-    function sendReinviteForRequest(req, seq, params, callback) {
+    function sendReinviteForRequest(req, seq, params, callback, ackCallback) {
 
-      var ipAddress;
+      let ipAddress;
       if (!sipParams.publicAddress) {
         ipAddress = ip.address();
       } else {
         ipAddress = sipParams.publicAddress;
       }
 
-      var to;
-      var from;
+      let to;
+      let from;
 
       if (req.method) {
         to = req.headers.from;
@@ -781,7 +782,7 @@ module.exports = function (chai, utils, sipStack) {
         contact = params.contact;
       }
 
-      var reinvite = {
+      const reinvite = {
         method: "INVITE",
         uri: req.headers.contact[0].uri,
         headers: {
@@ -830,7 +831,7 @@ module.exports = function (chai, utils, sipStack) {
 
       if(params.disableMedia) {
         l.verbose("Stopping media for reinvite");
-        var id = req.headers["call-id"];
+        const id = req.headers["call-id"];
         stopMedia(id);
 
       }
@@ -859,7 +860,7 @@ module.exports = function (chai, utils, sipStack) {
         }
 
 
-        sendAck(rs, lateOfferSdp);
+        sendAck(rs, lateOfferSdp, ackCallback);
 
 
       });
@@ -1038,7 +1039,7 @@ module.exports = function (chai, utils, sipStack) {
       return cancel;
 
     }
-    function sendAck(rs, sdp) {
+    function sendAck(rs, sdp, callback) {
       l.verbose("Generate ACK reply for response", rs);
 
       if (dropAck) {
@@ -1108,7 +1109,12 @@ module.exports = function (chai, utils, sipStack) {
       }
 
 
-      setTimeout(() => { mySip.send(ack);},ackDelay * 1000);
+      setTimeout(() => {
+        mySip.send(ack);
+        if(callback) {
+          callback();
+        }
+      },ackDelay * 1000);
 
     }
     function handle200(rs, disableMedia = false) {
@@ -1158,7 +1164,7 @@ module.exports = function (chai, utils, sipStack) {
           l.verbose("media: 200 response playMedia for ", id);
 
 
-     
+
           if (sipParams.pcapFile) {
             let delay = 2000;
             if(sipParams.pcapDelay) {
@@ -1327,7 +1333,7 @@ module.exports = function (chai, utils, sipStack) {
           delete parsed.host;
           parsed.params = headerValue.params;
           converted = sip.stringifyUri(parsed);
-          
+
 
         }
 
@@ -1487,7 +1493,7 @@ module.exports = function (chai, utils, sipStack) {
               ipAddress = sipParams.publicAddress;
             }
 
-           
+
 
             resp = sip.makeResponse(rq, 200, "OK");
             if (!resp.content && rq.method == "INVITE") {
@@ -1511,10 +1517,10 @@ module.exports = function (chai, utils, sipStack) {
           setTimeout(() => {
             mySip.send(resp);
           }, 500);
-          
+
 
           //Media for incoming request
-       
+
           return;
 
         }
@@ -1568,7 +1574,7 @@ module.exports = function (chai, utils, sipStack) {
           body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
         }*/
 
-        
+
         (async ()=>{
 
           if (params) {
@@ -1725,12 +1731,11 @@ module.exports = function (chai, utils, sipStack) {
         sendBye(req, byecallback);
 
       },
+      sendReinviteForRequest: function (req, seq, params, callback, ackCallback) {
+        sendReinviteForRequest(req, seq, params, callback, ackCallback);
+      },
       sendInfoInDialog: function (req, body,contentType, infocallback) {
         sendInfoInDialog(req,body,contentType,infocallback);
-      },
-
-      sendReinviteForRequest: function (req, seq, params, callback) {
-        sendReinviteForRequest(req, seq, params, callback);
       },
       playMedia: playMedia,
       sendUpdateForRequest: function (req, seq) {
