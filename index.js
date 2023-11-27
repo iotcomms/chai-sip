@@ -194,28 +194,31 @@ module.exports = function (chai, utils, sipStack) {
     function playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
 
       l.verbose("media: play GST RTP audio for", JSON.stringify(sdpMedia, null, 2));
-      var ip;
+      let ip;
       if (sdpMedia.connection) {
         ip = sdpMedia.connection.ip;
       } else {
         ip = sdpOrigin;
       }
 
-      var gstStr;
-      for (var rtpPayload of sdpMedia.rtp) {
-        if (rtpPayload.codec.toUpperCase() == "PCMA") {
+      let gstStr;
+      for (const rtpPayload of sdpMedia.rtp) {
+        if (rtpPayload.codec.toUpperCase() === "PCMA") {
           gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " do-timestamp=true loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! alawenc ! rtppcmapay min-ptime=20000000 max-ptime=20000000 ptime-multiple=20000000 ! capsfilter caps=\"application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
           l.debug("Will send PCMA codec");
           break;
         }
-
-        if (rtpPayload.codec.toUpperCase() == "PCMU") {
+        else if (rtpPayload.codec.toUpperCase() === "PCMU") {
           gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! capsfilter caps=\"application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
           l.debug("Will send PCMU codec");
           break;
         }
-
-        if (rtpPayload.codec.toUpperCase() == "OPUS") {
+        else if (rtpPayload.codec.toUpperCase() === "G722") {
+          gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! avenc_g722 name=rtpenc ! rtpg722pay name=rtppay min-ptime=20000000 max-ptime=20000000 ptime-multiple=20000000 ! capsfilter name=rtpcaps caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
+          l.debug("Will send G722 codec");
+          break;
+        }
+        else if (rtpPayload.codec.toUpperCase() === "OPUS") {
           gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " loop=1 ! wavparse ignore-length=1  ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! opusenc ! rtpopuspay pt=" + rtpPayload.payload + " min-ptime=20000000 max-ptime=20000000 ! udpsink host=" + ip + " port=" + sdpMedia.port;
           l.debug("Will send OPUS codec");
           break;
@@ -224,12 +227,12 @@ module.exports = function (chai, utils, sipStack) {
 
       l.debug("Will send media to " + ip + ":" + sdpMedia.port);
       //opus
-      var gstArr = gstStr.split(" ");
+      const gstArr = gstStr.split(" ");
 
       l.debug("gstArr", JSON.stringify(gstArr));
       //var packetSize = 172;//sdp.media[0].ptime*8;
       //var pid =exec(ffmpeg.path + " -stream_loop -1 -re  -i "+ prompt +" -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn  -acodec pcm_alaw -f rtp rtp://" + ip + ":" + sdpMedia.port , (err, stdout, stderr) => {
-      var pid = execFile("gst-launch-1.0", gstArr, (err) => {
+      const pid = execFile("gst-launch-1.0", gstArr, (err) => {
 
         if (err) {
           if (err.signal != "SIGTERM") {
@@ -431,17 +434,17 @@ module.exports = function (chai, utils, sipStack) {
         }
 
         let remoteCodec = "PCMA";
-        if(sdpMedia.rtp && sdpMedia.rtp[0] && sdpMedia.rtp[0].codec=="PCMU") {
-          remoteCodec="PCMU";
+        if(sdpMedia.rtp && sdpMedia.rtp[0] && (sdpMedia.rtp[0].codec === "PCMU" || sdpMedia.rtp[0].codec === "G722")) {
+          remoteCodec = sdpMedia.rtp[0].codec;
         }
 
-          l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2));
-          let remoteDtmfPt = getDtmfPt(sdpMedia);
-          const msparams = { pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
-          mediaclient[dialogId].start(msparams);
-        } else {
-          playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
-        }
+        l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2));
+        let remoteDtmfPt = getDtmfPt(sdpMedia);
+        const msparams = { pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
+        mediaclient[dialogId].start(msparams);
+      } else {
+        playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
+      }
     }
 
     function gotFinalResponse(response, callback) {
@@ -486,19 +489,22 @@ module.exports = function (chai, utils, sipStack) {
       let pt = 8;
       let codec = "PCMA";
 
-      if (sipParams.codec == "PCMU" || params.codec == "PCMU") {
+      if (sipParams.codec === "PCMU" || params.codec === "PCMU") {
         pt = 0;
         codec = "PCMU";
       }
-
-      if (sipParams.codec == "opus" || (params.codec && params.codec.toLowerCase() == "opus")) {
+      else if (sipParams.codec === "G722" || params.codec === "G722") {
+        pt = 9;
+        codec = "G722";
+      }
+      else if (sipParams.codec === "opus" || (params.codec && params.codec.toLowerCase() === "opus")) {
         pt = 111;
         codec = "opus";
       }
 
 
 
-      let body = "v=0\r\n" +
+      const body = "v=0\r\n" +
         "o=- " + rstring() + " " + rstring() + " IN IP4 " + rtpAddress + "\r\n" +
         "s=-\r\n" +
         "c=IN IP4 " + rtpAddress + "\r\n" +
