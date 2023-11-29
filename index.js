@@ -434,13 +434,24 @@ module.exports = function (chai, utils, sipStack) {
         }
 
         let remoteCodec = "PCMA";
-        if(sdpMedia.rtp && sdpMedia.rtp[0] && (sdpMedia.rtp[0].codec === "PCMU" || sdpMedia.rtp[0].codec === "G722")) {
+        let remotePt = 8;
+        if(sdpMedia.rtp && sdpMedia.rtp[0] && (sdpMedia.rtp[0].codec === "PCMU" || sdpMedia.rtp[0].codec === "G722" || sdpMedia.rtp[0].codec?.toUpperCase() === "OPUS")) {
           remoteCodec = sdpMedia.rtp[0].codec;
+          remotePt = sdpMedia.rtp[0].payload;
         }
 
         l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2));
         let remoteDtmfPt = getDtmfPt(sdpMedia);
-        const msparams = { pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId, remoteIp: ip, remotePort: sdpMedia.port, prompt: prompt,remoteCodec:remoteCodec,remoteDtmfPt:remoteDtmfPt };
+        const msparams = {
+          pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient",
+          dialogId: dialogId,
+          remoteIp: ip,
+          remotePort: sdpMedia.port,
+          prompt: prompt,
+          remoteCodec: remoteCodec,
+          remotePt: remotePt,
+          remoteDtmfPt:remoteDtmfPt
+        };
         mediaclient[dialogId].start(msparams);
       } else {
         playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
