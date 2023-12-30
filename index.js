@@ -149,6 +149,7 @@ module.exports = function (chai, utils, sipStack) {
     var useTelUri=false;
     var expirationTimers = {};
     var sipParams = {};
+    var disabledMediaUsers = [];
     var dtmfCallback = params.dtmfCallback;
     var requestReady = false;
 
@@ -635,7 +636,7 @@ module.exports = function (chai, utils, sipStack) {
       if (sdp && !(sipParams.disableMedia)) {
         var id = rq.headers["call-id"];
 
-        l.verbose("media: playIncomingReqMedia for ", rq.method, id,sipParams.mediaFile);
+        l.verbose("media: playIncomingReqMedia for ", rq.method, rq.uri, id,sipParams.mediaFile);
         if(process.env.useMediatool) {
           lp =  await createPipeline(id);
         }
@@ -650,6 +651,12 @@ module.exports = function (chai, utils, sipStack) {
         let rqUser;
         if(rq.uri) {
           rqUser = sip.parseUri(rq.uri).user
+        }
+
+  
+        if(disabledMediaUsers.indexOf(rqUser)>=0) {
+          l.verbose("Media disabled for user",rqUser,disabledMediaUsers);
+          return;
         }
 
         if(sipParams.mediaFileConfig && sipParams.mediaFileConfig[rqUser]) {
@@ -1468,8 +1475,12 @@ module.exports = function (chai, utils, sipStack) {
             let localPort = sipParams.rtpPort
 
             if (rq.content && (rq.method == "INVITE" || rq.method == "ACK") && sipParams.disableMedia != true && !(sipParams.reInvitePcapFile &&  rq.headers.to.params.tag) && !(sipParams.pcapFile &&  !rq.headers.to.params.tag) ) {
+
+
+
+
               localPort = await playIncomingReqMedia(rq);
-              l.verbose("re-invite response will use localPort",localPort)
+              l.verbose("response will use localPort",localPort)
             }
 
             resp = requestCallback(rq,localPort);
@@ -1744,6 +1755,12 @@ module.exports = function (chai, utils, sipStack) {
         sendInfoInDialog(req,body,contentType,infocallback);
       },
       playMedia: playMedia,
+      setMediaDisabled: function () {
+        sipParams.disableMedia = true;
+      },
+      setMediaDisabledForUser: function (user) {
+        disabledMediaUsers.push(user);
+      },
       sendUpdateForRequest: function (req, seq) {
         sendUpdateForRequest(req, seq);
       },
