@@ -1772,6 +1772,13 @@ module.exports = function (chai, utils, sipStack) {
         return sip.parseUri(uri);
 
       },
+      isMediaPlaying: function(id) {
+        if(mediaclient[id]) {
+          return true;
+        } else {
+          return false;
+        }
+      },
       playPcapFile: playPcapFile,
       setPcapFile: function (file,pcapDelay) {
         sipParams.pcapFile = file;
