@@ -1084,6 +1084,7 @@ module.exports = function (chai, utils, sipStack) {
       }
 
       var ack;
+      remoteUri = remoteUri || rs.headers.contact[0].uri;
       if (lateOffer || sdp)
         ack = makeRequest("ACK", remoteUri, headers, "application/sdp", body);
       else
