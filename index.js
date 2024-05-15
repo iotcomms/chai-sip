@@ -1268,15 +1268,24 @@ module.exports = function (chai, utils, sipStack) {
       var session = { nonce: "" };
       var creds;
 
+      let realm;
+      if(response.headers["www-authenticate"]) {
+        realm = JSON.parse(response.headers["www-authenticate"][0].realm);
+      } else if (response.headers["proxy-authenticate"]) {
+        realm = JSON.parse(response.headers["proxy-authenticate"][0].realm);
+      }
+      l.debug("Response realm",realm);
+
       if (sipParams.authInfo) {
         let user = sip.parseUri(request.headers.from.uri).user;
         if (sipParams.authInfo[user]) {
-          creds = { user: user, password: sipParams.authInfo[user], realm: sipParams.domain, nonce: "", uri: "" };
+          creds = { user: user, password: sipParams.authInfo[user], realm: realm, nonce: "", uri: "" };
         }
 
       } else {
-        creds = { user: sipParams.userid, password: sipParams.password, realm: sipParams.domain, nonce: "", uri: "" };
+        creds = { user: sipParams.userid, password: sipParams.password, realm: realm, nonce: "", uri: "" };
       }
+      l.debug("creds",creds);
       digest.signRequest(session, request, response, creds);
       l.verbose("Sending request again with authorization header", JSON.stringify(request, null, 2));
       mySip.send(request, function (rs) {
