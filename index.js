@@ -1387,7 +1387,7 @@ module.exports = function (chai, utils, sipStack) {
         }
         rq.headers.supported = "timer";
       }
-      console.log("useTelUri",useTelUri);
+
       if(useTelUri) {
         rq.headers.to = convertToTelUri(rq.headers.to);
         rq.headers.from = convertToTelUri(rq.headers.from);
