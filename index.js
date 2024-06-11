@@ -1224,7 +1224,15 @@ module.exports = function (chai, utils, sipStack) {
           }
 
           if (sdp.media[0].type == "audio") {
-            playMedia(id, sdp.media[0], sdp.origin.address, prompt0);
+            if(sipParams.mediaDelay) {
+              l.verbose("Will delay media playout with ",sipParams.mediaDelay,"seconds")
+              setTimeout(() => {
+                playMedia(id, sdp.media[0], sdp.origin.address, prompt0);
+              }, sipParams.mediaDelay * 1000);
+
+            } else {
+              playMedia(id, sdp.media[0], sdp.origin.address, prompt0);
+            }
           }
 
           if (sdp.media.length > 1) {
