@@ -675,7 +675,15 @@ module.exports = function (chai, utils, sipStack) {
           l.verbose("Setting mediaFile from mediaFileConfig",mediaFile)
         }
         if (sdp.media[0].type == "audio") {
-          playMedia(id, sdp.media[0], sdp.origin.address, mediaFile);
+          if(sipParams.mediaDelay) {
+            l.verbose("Will delay media playout for request")
+            setTimeout(() => {
+              playMedia(id, sdp.media[0], sdp.origin.address, mediaFile);
+            }, sipParams.mediaDelay*1000);
+
+          } else {
+            playMedia(id, sdp.media[0], sdp.origin.address, mediaFile);
+          }
         }
 
         if (sdp.media.length > 1) {
@@ -1815,6 +1823,9 @@ module.exports = function (chai, utils, sipStack) {
       },
       setReInvitePcapFile: function (file) {
         sipParams.reInvitePcapFile = file;
+      },
+      setMediaDelay: function (delay) {
+        sipParams.mediaDelay = delay;
       },
       send: function (req) {
         return mySip.send(req);
