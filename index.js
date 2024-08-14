@@ -453,7 +453,11 @@ module.exports = function (chai, utils, sipStack) {
           remotePt: remotePt,
           remoteDtmfPt:remoteDtmfPt
         };
-        mediaclient[dialogId].start(msparams);
+        if(mediaclient && mediaclient[dialogId]) {
+          mediaclient[dialogId].start(msparams);
+        } else {
+          l.info("No mediaclient found for ",dialogId);
+        }
       } else {
         playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt);
       }
