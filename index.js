@@ -1634,8 +1634,9 @@ module.exports = function (chai, utils, sipStack) {
             useTelUri = params.useTelUri;
           }
 
+          const callId = rstring() + Date.now().toString();
           const reqParams = {
-            callId: rstring() + Date.now().toString(),
+            callId,
             codec: params?.codec,
             protocol: params?.protocol
           };
