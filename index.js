@@ -483,24 +483,9 @@ module.exports = function (chai, utils, sipStack) {
         return params.body;
       }
 
-      let rtpAddress = ip.address();
-
-      if (sipParams.rtpAddress) {
-        rtpAddress = sipParams.rtpAddress;
-      }
-
-      if (params.rtpAddress) {
-        rtpAddress = params.rtpAddress;
-      }
-
-      let rtpPort = 30000;
-      if (sipParams.rtpPort) {
-        rtpPort = sipParams.rtpPort;
-      }
-
-      if (params.rtpPort) {
-        rtpPort = params.rtpPort;
-      }
+      const rtpAddress = params.rtpAddress ?? sipParams.rtpAddress ?? ip.address();
+      const rtpPort= params.rtpPort ?? sipParams.rtpPort ?? 30000;
+      const protocol= params.protocol ?? sipParams.protocol ?? "RTP/AVP";
 
       let pt = 8;
       let codec = "PCMA";
@@ -518,21 +503,21 @@ module.exports = function (chai, utils, sipStack) {
         codec = "opus";
       }
 
-
-
-      const body = "v=0\r\n" +
-        "o=- " + rstring() + " " + rstring() + " IN IP4 " + rtpAddress + "\r\n" +
-        "s=-\r\n" +
-        "c=IN IP4 " + rtpAddress + "\r\n" +
-        "t=0 0\r\n" +
-        "m=audio " + rtpPort + " RTP/AVP " + pt + " 101\r\n" +
-        "a=rtpmap:" + pt + " " + codec + "/8000\r\n" +
-        "a=ptime:20\r\n" +
-        "a=sendrecv\r\n" +
-        "a=rtpmap:101 telephone-event/8000\r\n" +
-        "a=fmtp:101 0-15\r\n" +
-        "a=ptime:20\r\n" +
-        "a=sendrecv\r\n";
+      const body = [
+        "v=0",
+        `o=- ${rstring()} ${rstring()} IN IP4 ${rtpAddress}`,
+        "s=-",
+        `c=IN IP4 ${rtpAddress}`,
+        "t=0 0",
+        `m=audio ${rtpPort} ${protocol} ${pt} 101`,
+        `a=rtpmap:${pt} ${codec}/8000`,
+        "a=ptime:20",
+        "a=sendrecv",
+        "a=rtpmap:101 telephone-event/8000",
+        "a=fmtp:101 0-15",
+        "a=ptime:20",
+        "a=sendrecv"
+      ].join("\r\n");
 
       return body;
     }
@@ -1649,11 +1634,12 @@ module.exports = function (chai, utils, sipStack) {
             useTelUri = params.useTelUri;
           }
 
-          let callId = rstring() + Date.now().toString();
-          let reqParams = {callId:callId};
-          if(params&&params.codec) {
-            reqParams.codec = params.codec;
-          }
+          const callId = rstring() + Date.now().toString();
+          const reqParams = {
+            callId,
+            codec: params?.codec,
+            protocol: params?.protocol
+          };
 
           if(process.env.useMediatool) {
             reqParams.rtpPort = await createPipeline(callId);
