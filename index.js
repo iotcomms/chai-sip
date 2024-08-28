@@ -544,6 +544,8 @@ module.exports = function (chai, utils, sipStack) {
         params: {}
       };
 
+
+
       if(params.regId && params.instanceId) {
         contactObj.params["+sip.instance"] = `"${params.instanceId}"`;
         contactObj.params["reg-id"] = params.regId;
@@ -557,6 +559,8 @@ module.exports = function (chai, utils, sipStack) {
       if(params.callId) {
         callId = params.callId;
       }
+
+
 
       var req = {
         method: method,
@@ -653,7 +657,7 @@ module.exports = function (chai, utils, sipStack) {
           rqUser = sip.parseUri(rq.uri).user
         }
 
-  
+
         if(disabledMediaUsers.indexOf(rqUser)>=0) {
           l.verbose("Media disabled for user",rqUser,disabledMediaUsers);
           return;
@@ -1078,7 +1082,12 @@ module.exports = function (chai, utils, sipStack) {
 
       };
 
-      l.debug("Headers", headers);
+
+      if(sipParams && sipParams.headers) {
+        headers = {...sipParams.headers,...headers};
+      }
+
+      l.verbose("Headers", JSON.stringify(headers,null,2));
 
       let body;
       if (sdp) {
@@ -1120,9 +1129,14 @@ module.exports = function (chai, utils, sipStack) {
         ipAddress = sipParams.publicAddress;
       }
 
+      if(headers && headers.contact) {
+        let uri = sip.parseUri(headers.contact);
+        l.verbose("parsed contact uri",uri);
+        ack.headers.contact = headers.contact;
+      } else {
+        ack.headers.contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }];
+      }
 
-
-      ack.headers.contact = [{ uri: "sip:" + sipParams.userid + "@" + ipAddress + ":" + (sipParams.tunnelPort || sipParams.port) + ";transport=" + sipParams.transport }],
 
 
       l.verbose("Send ACK reply", JSON.stringify(ack, null, 2));
