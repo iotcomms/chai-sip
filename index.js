@@ -190,69 +190,58 @@ module.exports = function (chai, utils, sipStack) {
       l.warn("No matching mediaclient for " + id);
     }
 
-
-
     function playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
 
       l.verbose("media: play GST RTP audio for", JSON.stringify(sdpMedia, null, 2));
-      let ip;
-      if (sdpMedia.connection) {
-        ip = sdpMedia.connection.ip;
-      } else {
-        ip = sdpOrigin;
-      }
-
+      const ip = sdpMedia.connection?.ip ?? sdpOrigin;
+      const encrypter = ["RTP/SAVP", "RTP/SAVPF"].includes(sdpMedia.protocol) && sdpMedia.crypto.length > 0
+          ? `! srtpenc key="${sdpMedia.crypto[0].config.slice(7)}" `
+          : "";
       let gstStr;
       for (const rtpPayload of sdpMedia.rtp) {
         if (rtpPayload.codec.toUpperCase() === "PCMA") {
-          gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " do-timestamp=true loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! alawenc ! rtppcmapay min-ptime=20000000 max-ptime=20000000 ptime-multiple=20000000 ! capsfilter caps=\"application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
+          gstStr = `-m multifilesrc name=${dialogId} location=${prompt} do-timestamp=true loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps="audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved" ! alawenc ! rtppcmapay min-ptime=20000000 max-ptime=20000000 ptime-multiple=20000000 ! capsfilter caps="application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send PCMA codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "PCMU") {
-          gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! capsfilter caps=\"application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
+          gstStr = `-m multifilesrc name=${dialogId} location=${prompt} loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps="audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! capsfilter caps="application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMU,payload=(int)8,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send PCMU codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "G722") {
-          gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! avenc_g722 name=rtpenc ! rtpg722pay name=rtppay min-ptime=20000000 max-ptime=20000000 ptime-multiple=20000000 ! capsfilter name=rtpcaps caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
+          gstStr = `-m multifilesrc name=${dialogId} location=${prompt} loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! avenc_g722 name=rtpenc ! rtpg722pay name=rtppay min-ptime=20000000 max-ptime=20000000 ptime-multiple=20000000 ! capsfilter name=rtpcaps caps="application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send G722 codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "OPUS") {
-          gstStr = "-m multifilesrc name=" + dialogId + " location=" + prompt + " loop=1 ! wavparse ignore-length=1  ! audioresample ! audioconvert !  capsfilter caps=\"audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved\" ! opusenc ! rtpopuspay pt=" + rtpPayload.payload + " min-ptime=20000000 max-ptime=20000000 ! udpsink host=" + ip + " port=" + sdpMedia.port;
+          gstStr = `-m multifilesrc name=${dialogId} location=${prompt} loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps="audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved" ! opusenc ! rtpopuspay pt=${rtpPayload.payload} min-ptime=20000000 max-ptime=20000000 ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send OPUS codec");
           break;
         }
       }
 
       l.debug("Will send media to " + ip + ":" + sdpMedia.port);
-      //opus
       const gstArr = gstStr.split(" ");
 
       l.debug("gstArr", JSON.stringify(gstArr));
-      //var packetSize = 172;//sdp.media[0].ptime*8;
-      //var pid =exec(ffmpeg.path + " -stream_loop -1 -re  -i "+ prompt +" -filter_complex 'aresample=8000,asetnsamples=n="+packetSize+"' -ac 1 -vn  -acodec pcm_alaw -f rtp rtp://" + ip + ":" + sdpMedia.port , (err, stdout, stderr) => {
       const pid = execFile("gst-launch-1.0", gstArr, (err) => {
 
         if (err) {
           if (err.signal != "SIGTERM") {
-            l.error("Could not execute ffmpeg", JSON.stringify(err), null, 2);
+            l.error("Could not execute gst-launch-1.0", JSON.stringify(err), null, 2);
           }
           return;
         }
-        l.debug("Completed ffmpeg");
+        l.debug("Completed gst-launch-1.0");
 
-        // the *entire* stdout and stderr (buffered)
-        //l.debug("stdout:",stdout);
-        //l.debug("stderr:",stderr);
       });
       l.verbose("RTP audio playing, pid ", dialogId);
       if (!mediaProcesses[dialogId]) {
         mediaProcesses[dialogId] = [];
       }
       if (!pid) {
-        throw "Could not start gst-launch";
+        throw "Could not start gst-launch-1.0";
       } else {
         mediaProcesses[dialogId].push(pid);
         lastMediaId = dialogId;
