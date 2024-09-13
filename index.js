@@ -195,7 +195,7 @@ module.exports = function (chai, utils, sipStack) {
       l.verbose("media: play GST RTP audio for", JSON.stringify(sdpMedia, null, 2));
       const ip = sdpMedia.connection?.ip ?? sdpOrigin;
       const encrypter = ["RTP/SAVP", "RTP/SAVPF"].includes(sdpMedia.protocol) && sdpMedia.crypto.length > 0
-          ? `! srtpenc key="${sdpMedia.crypto[0].config.slice(7)}" `
+          ? `! srtpenc key="${sdpMedia.crypto[0].config.split("|")[0].slice(7)}" `
           : "";
       let gstStr;
       for (const rtpPayload of sdpMedia.rtp) {
