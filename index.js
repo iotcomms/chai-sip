@@ -205,7 +205,7 @@ module.exports = function (chai, utils, sipStack) {
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "PCMU") {
-          gstStr = `-m multifilesrc name=${dialogId} location=${prompt} loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps="audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! capsfilter caps="application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMU,payload=(int)8,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `-m multifilesrc name=${dialogId} location=${prompt} loop=1 ! wavparse ignore-length=1 ! audioresample ! audioconvert ! capsfilter caps="audio/x-raw,format=(string)S16LE,rate=(int)8000,channel-mask=(bitmask)0x0000000000000000,channels=(int)1,layout=(string)interleaved" ! mulawenc ! rtppcmupay min-ptime=20000000 max-ptime=20000000 ! capsfilter caps="application/x-rtp,media=(string)audio,maxptime=(uint)20,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send PCMU codec");
           break;
         }
