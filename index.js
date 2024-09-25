@@ -190,10 +190,7 @@ module.exports = function (chai, utils, sipStack) {
       l.warn("No matching mediaclient for " + id);
     }
 
-    function playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
-
-      l.verbose("media: play GST RTP audio for", JSON.stringify(sdpMedia, null, 2));
-      const ip = sdpMedia.connection?.ip ?? sdpOrigin;
+    function getGstStrFromSdpMedia(dialogId, sdpMedia, ip, prompt) {
       const encrypter = ["RTP/SAVP", "RTP/SAVPF"].includes(sdpMedia.protocol) && sdpMedia.crypto.length > 0
           ? `! srtpenc key="${sdpMedia.crypto[0].config.split("|")[0].slice(7)}" `
           : "";
@@ -220,6 +217,15 @@ module.exports = function (chai, utils, sipStack) {
           break;
         }
       }
+      return gstStr;
+    }
+
+    function playGstMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
+
+      l.verbose("media: play GST RTP audio for", JSON.stringify(sdpMedia, null, 2));
+
+      const ip = sdpMedia.connection?.ip ?? sdpOrigin;
+      const gstStr = getGstStrFromSdpMedia(dialogId, sdpMedia, ip, prompt);
 
       l.debug("Will send media to " + ip + ":" + sdpMedia.port);
       const gstArr = gstStr.split(" ");
@@ -283,27 +289,44 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
+    function getGstStrFromSdpMediaPcap(dialogId, sdpMedia, ip, pcapFile) {
+      let gstStr;
+      for (const rtpPayload of sdpMedia.rtp) {
+        if (rtpPayload.codec.toUpperCase() === "PCMA") {
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          l.debug("Will send PCMA codec");
+          break;
+        }
+        else if (rtpPayload.codec.toUpperCase() === "PCMU") {
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          l.debug("Will send PCMU codec");
+          break;
+        }
+        else if (rtpPayload.codec.toUpperCase() === "G722") {
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          l.debug("Will send G722 codec");
+          break;
+        }
+        else if (rtpPayload.codec.toUpperCase() === "OPUS") {
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,encoding-name=OPUS,payload=(int)99,media=(string)audio,clock-rate=(int)48000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          l.debug("Will send OPUS codec");
+          break;
+        }
+      }
+      return gstStr;
+    }
+
     function playPcapFile(dialogId, sdpMedia, sdpOrigin, pcapFile) {
       l.verbose("media: play pcapFile for", JSON.stringify(sdpMedia, null, 2));
       sipParams.pcapFile = pcapFile;
-      var ip;
-      if (sdpMedia.connection) {
-        ip = sdpMedia.connection.ip;
-      } else {
-        ip = sdpOrigin;
-      }
 
+      const ip = sdpMedia.connection?.ip ?? sdpOrigin;
       l.verbose("Send pcap to ", ip, "listen on port ", sipParams.rtpPort);
 
-      var gstStr;
-      gstStr = "filesrc name=" + dialogId + " location=" + pcapFile + " ! pcapparse ! capsfilter caps=\"application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000\" ! udpsink host=" + ip + " port=" + sdpMedia.port;
+      const gstStr = getGstStrFromSdpMediaPcap(dialogId, sdpMedia, ip, pcapFile);
       l.debug("Will send pcap to " + ip + ":" + sdpMedia.port);
 
-
-      //opus
-
-
-      var gstArr = gstStr.split(" ");
+      const gstArr = gstStr.split(" ");
 
       l.verbose("gstArr", JSON.stringify(gstArr));
       //var packetSize = 172;//sdp.media[0].ptime*8;
