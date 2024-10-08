@@ -1698,6 +1698,10 @@ module.exports = function (chai, utils, sipStack) {
 
           sipParams.callerPcap = params.callerPcap;
           sipParams.calleePcap = params.calleePcap;
+
+          if(params.user) {
+            sipParams.userid = params.user;
+          }
         }
 
 
