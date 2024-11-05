@@ -1486,6 +1486,7 @@ module.exports = function (chai, utils, sipStack) {
     }
     try {
       sip.start(sipParams, async function (rq) {
+        let resend = false;
         l.debug("Received request", rq);
 
         if (rq.method == "BYE" || rq.method == "CANCEL") {
@@ -1536,6 +1537,10 @@ module.exports = function (chai, utils, sipStack) {
             }
 
             resp = requestCallback(rq,localPort);
+            if (resp && resp.resendResponse) {
+              resp = resp.response;
+              resend = true;
+            }
             l.debug("requestCallback resp", resp);
             if (rq.method == "INVITE" && !rq.headers.to.params.tag) {
               rq.headers.to.params.tag = rstring();
@@ -1586,6 +1591,11 @@ module.exports = function (chai, utils, sipStack) {
           setTimeout(() => {
             mySip.send(resp);
           }, 500);
+          if (resend) {
+            setTimeout(() => {
+              mySip.send(JSON.parse(JSON.stringify(resp)));
+            }, 1500);            
+          }
 
 
           //Media for incoming request
