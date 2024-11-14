@@ -1,6 +1,7 @@
 "use strict";
 var sip = require("sip");
 var digest = require("sip/digest");
+var crypto = require("crypto");
 var ip = require("ip");
 var transform = require("sdp-transform");
 var fs = require("fs");
@@ -53,6 +54,12 @@ if (process.env.useMediatool) {
 global.__basedir = __dirname;
 
 /// end warning
+
+
+function createHash(request) {
+  let stringToHash = request.headers.from.uri+":"+request.headers.to.uri+":"+request.headers.cseq.seq;
+  return crypto.createHash("md5").update(stringToHash).digest("hex");
+}
 
 module.exports = function (chai, utils, sipStack) {
 
@@ -152,7 +159,8 @@ module.exports = function (chai, utils, sipStack) {
     var disabledMediaUsers = [];
     var dtmfCallback = params.dtmfCallback;
     var requestReady = false;
-
+    var sipTransactionLog = {};
+    var sipTransactionIndex = 0;
     sipParams = params;
     sipParams.logger = {
       send: function (message) { l.debug("SND\n" + util.inspect(message, false, null)); },
@@ -160,7 +168,50 @@ module.exports = function (chai, utils, sipStack) {
       error: function (message) { l.error("ERR\n" + util.inspect(message, false, null)); }
     };
 
+    function handleTraceLogging (msg) {
+      var wrappedRequestObj;
+      let ts = Date.now();
+      var hash = createHash(msg);
+      if (msg.headers["content-type"] == "application/sdp") {
+        msg.content = transform.parse(msg.content);
+      }
+      if (!sipTransactionLog["transactionId_"+hash]) {
+        wrappedRequestObj =  { index: sipTransactionIndex, timeStamp: ts,  transactionId: hash, request: [], provResp:[], finalResp:[], ack:[]};
+        sipTransactionLog["transactionId_"+hash] = wrappedRequestObj;
+        sipTransactionLog["timestamp_"+ts] = wrappedRequestObj;
+        sipTransactionLog["index_"+ sipTransactionIndex] = wrappedRequestObj;  
+        sipTransactionIndex++;       
+      } else {
+        wrappedRequestObj = sipTransactionLog["transactionId_"+hash];
+      }
 
+      if (msg.method) {
+        if (msg.method === "ACK") {
+          wrappedRequestObj.ack.push(msg);
+        } else {
+          wrappedRequestObj.request.push(msg);
+        }
+      } else {
+        // handle responses
+        if (msg.status < 200) {
+          // provsional responses
+          wrappedRequestObj.provResp.push(msg);
+        } else {
+          // final responses
+          wrappedRequestObj.finalResp.push(msg);
+        }
+      }
+    }
+
+    function wrappedSipSend (messageOut, callback) {  
+      handleTraceLogging (clone(messageOut)); 
+      mySip.send(messageOut, function (messageIn) {
+        handleTraceLogging(clone(messageIn));
+        if (callback) {
+          callback(messageIn);
+        }
+      });
+    }
 
 
     function stopMedia(id) {
@@ -777,7 +828,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
 
-      mySip.send(update, (rs) => {
+      wrappedSipSend(update, (rs) => {
         l.verbose("Received UPDATE response", JSON.stringify(rs, null, 2));
       });
 
@@ -875,7 +926,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
 
-      mySip.send(reinvite, (rs) => {
+      wrappedSipSend(reinvite, (rs) => {
         ackDelay = params.ackDelay || 0;
         l.verbose("Received reinvite response", JSON.stringify(rs, null, 2), "ackDelay", ackDelay);
         if (callback) {
@@ -963,7 +1014,7 @@ module.exports = function (chai, utils, sipStack) {
       stopMedia(id);
       l.debug("after stopmedia");
 
-      mySip.send(bye, (rs) => {
+      wrappedSipSend(bye, (rs) => {
         l.verbose("Received bye response", JSON.stringify(rs, null, 2));
         if (byecallback) {
           byecallback(rs);
@@ -1032,7 +1083,7 @@ module.exports = function (chai, utils, sipStack) {
       request = info;
 
 
-      mySip.send(info, (rs) => {
+      wrappedSipSend(info, (rs) => {
         l.verbose("Received info response", JSON.stringify(rs, null, 2));
         if (infocallback) {
           infocallback(rs);
@@ -1067,7 +1118,7 @@ module.exports = function (chai, utils, sipStack) {
 
       request = cancel;
 
-      mySip.send(cancel, function (rs) {
+      wrappedSipSend(cancel, function (rs) {
         l.verbose("Received CANCEL response", JSON.stringify(rs, null, 2));
         if (callback) {
           callback(rs);
@@ -1158,7 +1209,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
       setTimeout(() => {
-        mySip.send(ack);
+        wrappedSipSend(ack);
         if(callback) {
           callback();
         }
@@ -1285,10 +1336,10 @@ module.exports = function (chai, utils, sipStack) {
             delete playing[rs["call-id"]];
             stopMedia(id);
 
-            mySip.send(sip.makeResponse(rq, 200, "Ok"));
+            wrappedSipSend(sip.makeResponse(rq, 200, "Ok"));
           }
           else {
-            mySip.send(sip.makeResponse(rq, 405, "Method not allowed"));
+            wrappedSipSend(sip.makeResponse(rq, 405, "Method not allowed"));
           }
         };
       }
@@ -1331,7 +1382,7 @@ module.exports = function (chai, utils, sipStack) {
       l.debug("creds",creds);
       digest.signRequest(session, request, response, creds);
       l.verbose("Sending request again with authorization header", JSON.stringify(request, null, 2));
-      mySip.send(request, function (rs) {
+      wrappedSipSend(request, function (rs) {
         l.debug("Received after sending authorized request: " + rs.status);
         if (rs.status < 200) {
           if (provisionalCallback) {
@@ -1371,7 +1422,7 @@ module.exports = function (chai, utils, sipStack) {
 
           }
           rqCopy.headers.cseq.seq = nextSeq;
-          mySip.send(rqCopy, (rs) => {
+          wrappedSipSend(rqCopy, (rs) => {
             if (rs.status >= 200 && onRefreshFinalResponse) {
               onRefreshFinalResponse(rs);
             }
@@ -1411,6 +1462,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
     function sendRequest(rq, callback, provisionalCallback, disableMedia = false) {
+ 
       if (sessionExpires) {
         rq.headers["session-expires"] = sessionExpires;
         if (!refresherDisabled) {
@@ -1426,9 +1478,9 @@ module.exports = function (chai, utils, sipStack) {
 
       l.verbose("Sending");
       l.verbose(JSON.stringify(rq, null, 2), "\n\n");
-      mySip.send(rq,
-        function (rs) {
 
+      wrappedSipSend(rq,
+        function (rs) {
           l.verbose("Got response " + rs.status + " for callid " + rs.headers["call-id"]);
 
           if (rs.status < 200) {
@@ -1438,7 +1490,6 @@ module.exports = function (chai, utils, sipStack) {
             }
             return;
           }
-
           if (rs.status == 401 || rs.status == 407) {
             l.verbose("Received auth response");
             l.verbose(JSON.stringify(rs, null, 2));
@@ -1487,7 +1538,11 @@ module.exports = function (chai, utils, sipStack) {
     try {
       sip.start(sipParams, async function (rq) {
         let resend = false;
+        var ts = Date.now();
         l.debug("Received request", rq);
+        handleTraceLogging(clone(rq));
+ 
+
 
         if (rq.method == "BYE" || rq.method == "CANCEL") {
           let id = rq.headers["call-id"];
@@ -1588,13 +1643,17 @@ module.exports = function (chai, utils, sipStack) {
 
 
           }
-          setTimeout(() => {
-            mySip.send(resp);
-          }, 500);
-          if (resend) {
+
+          if (resp.headers.cseq.method !== "ACK") {
             setTimeout(() => {
-              mySip.send(JSON.parse(JSON.stringify(resp)));
-            }, 1500);            
+              wrappedSipSend(resp);
+            }, 500);
+            if (resend) {
+              setTimeout(() => {
+                l.info("Resending response", resp);
+                wrappedSipSend(JSON.parse(JSON.stringify(resp)));
+              }, 1500);            
+            }
           }
 
 
@@ -1607,19 +1666,27 @@ module.exports = function (chai, utils, sipStack) {
         if (rq.headers.to.params.tag) { // check if it's an in dialog request
           var id = [rq.headers["call-id"], rq.headers.to.params.tag, rq.headers.from.params.tag].join(":");
 
-          if (dialogs[id])
+          if (dialogs[id]) {
             dialogs[id](rq);
-          else
-            mySip.send(sip.makeResponse(rq, 481, "Call doesn't exists"));
+          }
+          else {
+            wrappedSipSend(sip.makeResponse(rq, 481, "Call doesn't exists"));
+          }
         }
-        else
-          mySip.send(sip.makeResponse(rq, 405, "Method not allowed"));
+        else {
+          wrappedSipSend(sip.makeResponse(rq, 405, "Method not allowed"));
+        }
       });
     } catch (e) {
       console.error("SIP start error " + e);
     }
     mySip = clone(sip);
     return {
+
+      getSipTransactionLog: function () {
+        return sipTransactionLog;
+      },
+      
       onFinalResponse: function (callback, provisionalCallback) {
         if(requestReady) {
           requestReady=false;
@@ -1684,6 +1751,7 @@ module.exports = function (chai, utils, sipStack) {
           l.verbose("reqParams",reqParams);
 
           request = makeRequest("INVITE", destination, headers, contentType, body,null,reqParams);
+
           requestReady = true;
         })();
         return this;
@@ -1858,7 +1926,7 @@ module.exports = function (chai, utils, sipStack) {
         sipParams.mediaDelay = delay;
       },
       send: function (req) {
-        return mySip.send(req);
+        return wrappedSipSend(req);
       },
       sendCancel: function (req, callback) {
         request = sendCancel(req, callback);
