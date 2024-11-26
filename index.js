@@ -1849,8 +1849,8 @@ module.exports = function (chai, utils, sipStack) {
 
 
       },
-      message: function (destination, headers, contentType, body, params = {}) {
-        request = makeRequest("MESSAGE", destination, headers, contentType, body,params);
+      message: function (destination, headers, contentType, body, params = {}, user = undefined) {
+        request = makeRequest("MESSAGE", destination, headers, contentType, body, user, params);
         requestReady=true;
         return this;
       },
