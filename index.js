@@ -342,24 +342,27 @@ module.exports = function (chai, utils, sipStack) {
 
     function getGstStrFromSdpMediaPcap(dialogId, sdpMedia, ip, pcapFile) {
       let gstStr;
+      const encrypter = ["RTP/SAVP", "RTP/SAVPF"].includes(sdpMedia.protocol) && sdpMedia.crypto.length > 0
+          ? `! srtpenc key="${sdpMedia.crypto[0].config.split("|")[0].slice(7)}" `
+          : "";
       for (const rtpPayload of sdpMedia.rtp) {
         if (rtpPayload.codec.toUpperCase() === "PCMA") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send PCMA codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "PCMU") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send PCMU codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "G722") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send G722 codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "OPUS") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,encoding-name=OPUS,payload=(int)99,media=(string)audio,clock-rate=(int)48000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,encoding-name=OPUS,payload=(int)99,media=(string)audio,clock-rate=(int)48000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send OPUS codec");
           break;
         }
