@@ -219,7 +219,13 @@ module.exports = function (chai, utils, sipStack) {
 
       if (process.env.useMediatool) {
         if (mediaclient[id]) {
-          mediaclient[id].stop();
+          if(Array.isArray(mediaclient[id])) {
+            for(let mc of mediaclient[id]) {
+              mc.stop();
+            }
+          } else {
+            mediaclient[id].stop();
+          }
           delete mediaclient[id];
           return;
         }
@@ -334,7 +340,11 @@ module.exports = function (chai, utils, sipStack) {
 
       }
       if(client) {
-        client.sendDTMF(digit,duration);
+        if(Array.isArray(client)) {
+          client[0].sendDTMF(digit,duration);
+        } else {
+          client.sendDTMF(digit,duration);
+        }
       } else {
         l.error("chai-sip is not configured with mediatool media component. This is not implemented without it.");
       }
@@ -342,24 +352,27 @@ module.exports = function (chai, utils, sipStack) {
 
     function getGstStrFromSdpMediaPcap(dialogId, sdpMedia, ip, pcapFile) {
       let gstStr;
+      const encrypter = ["RTP/SAVP", "RTP/SAVPF"].includes(sdpMedia.protocol) && sdpMedia.crypto.length > 0
+          ? `! srtpenc key="${sdpMedia.crypto[0].config.split("|")[0].slice(7)}" `
+          : "";
       for (const rtpPayload of sdpMedia.rtp) {
         if (rtpPayload.codec.toUpperCase() === "PCMA") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMA,payload=(int)8,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send PCMA codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "PCMU") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)PCMU,payload=(int)0,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send PCMU codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "G722") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,media=(string)audio,encoding-name=(string)G722,payload=(int)9,clock-rate=(int)8000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send G722 codec");
           break;
         }
         else if (rtpPayload.codec.toUpperCase() === "OPUS") {
-          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,encoding-name=OPUS,payload=(int)99,media=(string)audio,clock-rate=(int)48000" ! udpsink host=${ip} port=${sdpMedia.port}`;
+          gstStr = `filesrc name=${dialogId} location=${pcapFile} ! pcapparse ! capsfilter caps="application/x-rtp,encoding-name=OPUS,payload=(int)99,media=(string)audio,clock-rate=(int)48000" ${encrypter}! udpsink host=${ip} port=${sdpMedia.port}`;
           l.debug("Will send OPUS codec");
           break;
         }
@@ -412,11 +425,11 @@ module.exports = function (chai, utils, sipStack) {
 
 
 
-    function createPipeline(dialogId) {
+    function createPipeline(dialogId,siprecIndex=0) {
       return new Promise( (resolve) => {
       if (process.env.useMediatool) {
 
-        if(mediaclient[dialogId]) {
+        if(mediaclient[dialogId] && siprecIndex>0) {
           l.info("Mediaclient already running for dialogId",dialogId);
         }
         l.verbose("createPipeline called, using mediatool", dialogId);
@@ -454,9 +467,14 @@ module.exports = function (chai, utils, sipStack) {
                 dtmfCallback(args);
               }
             });
-
-            mediaclient[dialogId] = client;
-            currentMediaclient = client;
+            if(siprecIndex===0) {
+              mediaclient[dialogId] = client;
+            } else if(siprecIndex==1){
+              mediaclient[dialogId] = [client]
+            } else if(siprecIndex==2) {
+              mediaclient[dialogId].push(client)
+            }
+            currentMediaclient = mediaclient[dialogId];
             client.localPort = localPort;
             l.verbose("createPipeline localPort",localPort);
             resolve(localPort)
@@ -478,7 +496,7 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
-    function playMedia(dialogId, sdpMedia, sdpOrigin, prompt) {
+    function playMedia(dialogId, sdpMedia, sdpOrigin, prompt,channel=0) {
 
 
       if (process.env.useMediatool) {
@@ -504,7 +522,7 @@ module.exports = function (chai, utils, sipStack) {
           remotePt = sdpMedia.rtp[0].payload;
         }
 
-        l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2));
+        l.debug("playMedia sdpMedia",JSON.stringify(sdpMedia,null,2),"channel",channel);
         let remoteDtmfPt = getDtmfPt(sdpMedia);
         const msparams = {
           pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient",
@@ -517,7 +535,12 @@ module.exports = function (chai, utils, sipStack) {
           remoteDtmfPt:remoteDtmfPt
         };
         if(mediaclient && mediaclient[dialogId]) {
-          mediaclient[dialogId].start(msparams);
+          if(Array.isArray(mediaclient[dialogId])) {
+            msparams.dialogId = msparams.dialogId+":"+channel;
+            mediaclient[dialogId][channel].start(msparams);
+          } else {
+            mediaclient[dialogId].start(msparams);
+          }
         } else {
           l.info("No mediaclient found for ",dialogId);
         }
@@ -1311,7 +1334,7 @@ module.exports = function (chai, utils, sipStack) {
 
           if (sdp.media.length > 1) {
             if (sdp.media[1].type == "audio") {
-              playMedia(id, sdp.media[1], sdp.origin.address, prompt1);
+              playMedia(id, sdp.media[1], sdp.origin.address, prompt1,1);
 
             }
 
@@ -1758,6 +1781,8 @@ module.exports = function (chai, utils, sipStack) {
         return this;
       },
       inviteSipRec: function (destination, headers, contentType, body, params = {}) {
+
+        (async ()=>{
         if (!headers) {
           headers = {};
         }
@@ -1817,8 +1842,25 @@ module.exports = function (chai, utils, sipStack) {
           ct = contentType;
         }
 
-        request = makeRequest("INVITE", destination, headers, ct, body);
+        const callId = rstring() + Date.now().toString();
+        const reqParams = {
+          callId,
+          codec: params?.codec,
+          protocol: params?.protocol
+        };
+
+        if(process.env.useMediatool) {
+          reqParams.rtpPort = await createPipeline(callId,1);
+          reqParams.rtpPort2 = await createPipeline(callId,2);
+
+          body = body.replace("16552",reqParams.rtpPort);
+          body = body.replace("16554",reqParams.rtpPort2);
+        }
+
+        request = makeRequest("INVITE", destination, headers, ct, body,null,reqParams);
         requestReady=true;
+
+        })()
         return this;
       },
       reInvite: function (contentType, body, p0, p1, callback, provisionalCallback, disableMedia = false) {
@@ -1850,8 +1892,8 @@ module.exports = function (chai, utils, sipStack) {
 
 
       },
-      message: function (destination, headers, contentType, body, params = {}) {
-        request = makeRequest("MESSAGE", destination, headers, contentType, body,params);
+      message: function (destination, headers, contentType, body, params = {}, user = undefined) {
+        request = makeRequest("MESSAGE", destination, headers, contentType, body, user, params);
         requestReady=true;
         return this;
       },
