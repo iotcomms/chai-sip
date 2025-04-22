@@ -956,6 +956,9 @@ module.exports = function (chai, utils, sipStack) {
           l.verbose("Call reInvite callback");
           callback(rs);
         }
+        if (rs.status >= 400) {
+          return;
+        }
 
         let lateOfferSdp = params.lateOfferSdp;
 
