@@ -350,6 +350,26 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
+     function sendTone(frequency,duration,dialogId) {
+      let client;
+      if(dialogId) {
+        client = mediaclient[dialogId];
+      } else if (currentMediaclient) {
+        l.verbose("currentMediaclient localPort",currentMediaclient.localPort)
+        client = currentMediaclient;
+
+      }
+      if(client) {
+        if(Array.isArray(client)) {
+          client[0].sendTone(frequency,duration);
+        } else {
+          client.sendTone(frequency,duration);
+        }
+      } else {
+        l.error("chai-sip is not configured with mediatool media component. This is not implemented without it.");
+      }
+    }
+
     function getGstStrFromSdpMediaPcap(dialogId, sdpMedia, ip, pcapFile) {
       let gstStr;
       const encrypter = ["RTP/SAVP", "RTP/SAVPF"].includes(sdpMedia.protocol) && sdpMedia.crypto.length > 0
@@ -2020,6 +2040,12 @@ module.exports = function (chai, utils, sipStack) {
       sendDTMF: function (digit,duration=100.0,dialogId) {
         l.verbose("chai-sip sendDTMF",digit,duration);
         sendDTMF(digit,duration,dialogId);
+
+      },
+
+      sendTone: function (frequency,duration,dialogId) {
+        l.verbose("chai-sip sendTone",frequency,duration);
+        sendTone(frequency,duration,dialogId);
 
       },
 
