@@ -203,7 +203,7 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
-    function wrappedSipSend (messageOut, callback) {  
+    function wrappedSipSend (messageOut, callback) {
       handleTraceLogging (clone(messageOut)); 
       mySip.send(messageOut, function (messageIn) {
         handleTraceLogging(clone(messageIn));
@@ -1260,6 +1260,7 @@ module.exports = function (chai, utils, sipStack) {
 
     }
     function handle200(rs, disableMedia = false) {
+      l.verbose("handle200",rs);
       // yes we can get multiple 2xx response with different tags
       if (rs.headers.cseq.method != "INVITE") {
         return;
@@ -2002,8 +2003,16 @@ module.exports = function (chai, utils, sipStack) {
       stopMedia: function (id) {
         l.verbose("media: stopMedia for", id);
         if (mediaclient[id]) {
-          mediaclient[id].stop();
-          delete mediaclient[id];
+          if(Array.isArray(mediaclient[id])) {
+            for(let mc in mediaclient[id]) {
+              l.verbose("Stopping mediaclient",id,"index",mc)
+              mediaclient[id][mc].stop();
+            }
+
+          } else {
+            mediaclient[id].stop();
+            delete mediaclient[id];
+          }
         } else {
           if (mediaProcesses[id]) {
             stopMedia(id);
