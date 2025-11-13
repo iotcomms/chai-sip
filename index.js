@@ -227,6 +227,8 @@ module.exports = function (chai, utils, sipStack) {
             mediaclient[id].stop();
           }
           delete mediaclient[id];
+          l.debug("*Deleted mediaclient "+id);
+
           return;
         }
       }
@@ -752,7 +754,7 @@ module.exports = function (chai, utils, sipStack) {
         }
         l.verbose("lp",lp);
 
-        let mediaFile = prompt0;
+        let mediaFile = prompt1;
 
         if(sipParams.mediaFile) {
           mediaFile = sipParams.mediaFile;
@@ -917,11 +919,13 @@ module.exports = function (chai, utils, sipStack) {
         method: "INVITE",
         uri: req.headers.contact[0].uri,
         headers: {
+          ...params.headers,
           to: to,
           from: from,
           "call-id": req.headers["call-id"],
           cseq: { method: "INVITE", seq: seqVal },
           contact: contact,
+
         }
       };
 
@@ -1959,6 +1963,9 @@ module.exports = function (chai, utils, sipStack) {
       setMediaDisabledForUser: function (user) {
         disabledMediaUsers.push(user);
       },
+      createPipeline: function (dialogId,siprecIndex=0)  {
+        return createPipeline(dialogId,siprecIndex)
+      },
       sendUpdateForRequest: function (req, seq) {
         sendUpdateForRequest(req, seq);
       },
@@ -2000,18 +2007,19 @@ module.exports = function (chai, utils, sipStack) {
 
         return request;
       },
-      stopMedia: function (id) {
+      stopMedia: async function (id) {
         l.verbose("media: stopMedia for", id);
         if (mediaclient[id]) {
           if(Array.isArray(mediaclient[id])) {
             for(let mc in mediaclient[id]) {
               l.verbose("Stopping mediaclient",id,"index",mc)
-              mediaclient[id][mc].stop();
+              await mediaclient[id][mc].stop();
             }
 
           } else {
-            mediaclient[id].stop();
+            await mediaclient[id].stop();
             delete mediaclient[id];
+            l.debug("Deleted mediaclient "+id);
           }
         } else {
           if (mediaProcesses[id]) {
