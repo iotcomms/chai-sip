@@ -43,6 +43,8 @@ if (process.env.useMediatool) {
 
 
 
+
+
     mediatool.start();
     l.verbose("chai-sip started mediatool");
   }
@@ -117,9 +119,11 @@ module.exports = function (chai, utils, sipStack) {
         if (Array.isArray(mediaProcesses[dialogId])) {
           mediaProcesses[dialogId].forEach(function (mediaProcess) {
             try {
-              process.kill(mediaProcess.pid);
+              mediaProcess.kill();
+              //process.kill(mediaProcess.pid);
+              delete mediaProcesses[dialogId];
             } catch(e) {
-              l.warn("Could not kill mediaProcess.pid",mediaProcess.pid);
+              l.warn("Could not kill mediaProcess.pid: ",mediaProcess.pid,"dialogId",dialogId);
             }
           });
         }
@@ -161,6 +165,7 @@ module.exports = function (chai, utils, sipStack) {
     var requestReady = false;
     var sipTransactionLog = {};
     var sipTransactionIndex = 0;
+    var activePipelines = 0;
     sipParams = params;
     sipParams.logger = {
       send: function (message) { l.debug("SND\n" + util.inspect(message, false, null)); },
@@ -236,14 +241,15 @@ module.exports = function (chai, utils, sipStack) {
         for(var pid of mediaProcesses[id]) {
           try{
             l.verbose("Stopping mediaprocess... " + pid.pid);
-            process.kill(pid.pid);
+            pid.kill();
+            delete mediaProcesses[id];
           } catch(err) {
             if(!err.code=="ESRCH") {
               l.verbose("Error killing process",JSON.stringify(err));
             }
           }
         }
-        delete mediaProcesses[id];
+
         return;
       }
       l.warn("No matching mediaclient for " + id);
@@ -301,6 +307,7 @@ module.exports = function (chai, utils, sipStack) {
         l.debug("Completed gst-launch-1.0");
 
       });
+      l.verbose("Started mediaProcess pid ",pid.pid," for prompt file playout, dialogId: "+dialogId);
       l.verbose("RTP audio playing, pid ", dialogId);
       if (!mediaProcesses[dialogId]) {
         mediaProcesses[dialogId] = [];
@@ -431,6 +438,7 @@ module.exports = function (chai, utils, sipStack) {
         //l.debug("gst-launch-1.0 stdout:",stdout);
         //l.debug("gst-launch-1.0 stderr:",stderr);
       });
+      l.verbose("Started mediaProcess pid",pid.pid,"for pcap file playout, dialogId: "+dialogId);
       l.debug("RTP pcap playing, pid ");
       if (!mediaProcesses[dialogId]) {
         mediaProcesses[dialogId] = [];
@@ -463,6 +471,7 @@ module.exports = function (chai, utils, sipStack) {
 
             client.on("pipelineStarted", () => {
               l.verbose("dtmfclient pipelineStarted");
+              activePipelines++;
             });
 
             client.on("error", (err) => {
@@ -472,6 +481,7 @@ module.exports = function (chai, utils, sipStack) {
 
             client.on("stopped", (params) => {
               l.verbose("dtmfclient mediatool client stopped", JSON.stringify(params));
+              activePipelines--;
             });
 
             client.on("rtpTimeout", (params) => {
@@ -516,6 +526,36 @@ module.exports = function (chai, utils, sipStack) {
           }
         }
       }
+    }
+
+    function stopAllMedia() {
+       for (let dialogId in mediaProcesses) {
+        stopMedia(dialogId)
+       }
+
+      for (let dialogId in mediaclient) {
+        stopMedia(dialogId)
+       }
+    }
+
+    function getMediaStatus() {
+      let processes = [];
+      for (let dialogId in mediaProcesses) {
+        if (Array.isArray(mediaProcesses[dialogId])) {
+          mediaProcesses[dialogId].forEach(function (mediaProcess) {
+            processes.push(mediaProcess.pid);
+          });
+        } else {
+          l.verbose("mediaProcess object not array, it is ",mediaProcesses[dialogId]);
+          if(mediaProcesses[dialogId]?.pid) {
+            processes.push(mediaProcesses[dialogId]?.pid);
+          }
+        }
+      }
+      return {
+        activePipelines: activePipelines,
+        mediaProcesses: processes
+      };
     }
 
     function playMedia(dialogId, sdpMedia, sdpOrigin, prompt,channel=0) {
@@ -1960,6 +2000,9 @@ module.exports = function (chai, utils, sipStack) {
       setMediaDisabled: function () {
         sipParams.disableMedia = true;
       },
+      getMediaStatus: function ()  {
+        return getMediaStatus()
+      },
       setMediaDisabledForUser: function (user) {
         disabledMediaUsers.push(user);
       },
@@ -2029,28 +2072,14 @@ module.exports = function (chai, utils, sipStack) {
             if (lastMediaId)
               stopMedia(lastMediaId);
             else
-              l.warn("Could not find process for stopMedia", id);
+              l.warn("Could not find process for stopMedia", lastMediaId);
           }
 
         }
 
       },
       stop: function () {
-        if(mediaclient) {
-          let keys = Object.keys(mediaclient);
-          if(keys.length>0) {
-            l.warn("mediaclients still running",keys);
-            for(let key of keys) {
-              //mediaclient[key].stop()
-
-            }
-
-          }
-        }
-
-
-
-
+        stopAllMedia();
         mySip.stop();
 
       },
