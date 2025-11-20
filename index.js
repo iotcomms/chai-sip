@@ -470,7 +470,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
             client.on("pipelineStarted", () => {
-              l.verbose("dtmfclient pipelineStarted");
+              l.verbose("dtmfclient pipelineStarted", JSON.stringify(params));
               activePipelines++;
             });
 
@@ -479,10 +479,17 @@ module.exports = function (chai, utils, sipStack) {
             });
 
 
-            client.on("stopped", (params) => {
-              l.verbose("dtmfclient mediatool client stopped", JSON.stringify(params));
+            client.on("pipelineTerminated", (params) => {
+              l.verbose("dtmfclient mediatool client terminated userid", sipParams.userid, JSON.stringify(params));
               activePipelines--;
             });
+
+            client.on("stopped", (params) => {
+              l.verbose("dtmfclient mediatool client stopped userid ", sipParams.userid, JSON.stringify(params));
+              client.terminate(params.dialogId);
+            });
+
+
 
             client.on("rtpTimeout", (params) => {
               l.verbose("Got rtpTimeout event for ", params, ", will stop IVR with timeoutreason");
