@@ -238,17 +238,20 @@ module.exports = function (chai, utils, sipStack) {
         }
       }
       if(mediaProcesses[id]) {
+        l.verbose("stopMedia mediaProcess object not array, it is ",mediaProcesses[id]);
         for(var pid of mediaProcesses[id]) {
           try{
             l.verbose("Stopping mediaprocess... " + pid.pid);
             pid.kill();
-            delete mediaProcesses[id];
+
           } catch(err) {
             if(!err.code=="ESRCH") {
               l.verbose("Error killing process",JSON.stringify(err));
             }
           }
+
         }
+        delete mediaProcesses[id];
 
         return;
       }
@@ -410,7 +413,8 @@ module.exports = function (chai, utils, sipStack) {
     }
 
     function playPcapFile(dialogId, sdpMedia, sdpOrigin, pcapFile) {
-      l.verbose("media: play pcapFile for", JSON.stringify(sdpMedia, null, 2));
+      l.verbose("playmedia pcapfile for",sipParams?.userid,sipParams?.rtpPort,JSON.stringify(sdpMedia, null, 2))
+
       sipParams.pcapFile = pcapFile;
 
       const ip = sdpMedia.connection?.ip ?? sdpOrigin;
@@ -535,13 +539,27 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
-    function stopAllMedia() {
-       for (let dialogId in mediaProcesses) {
-        stopMedia(dialogId)
-       }
+    async function stopAllMedia() {
+      l.verbose("chai-sip stopAllMedia mediaProcesses",mediaProcesses)
+      for (let dialogId in mediaProcesses) {
+        if (Array.isArray(mediaProcesses[dialogId])) {
+          mediaProcesses[dialogId].forEach(function (mediaProcess) {
+            mediaProcess.kill();
+          });
+          delete mediaProcesses[dialogId];
+        } else {
+          l.verbose("mediaProcess object not array, it is ",mediaProcesses[dialogId]);
+          if(mediaProcesses[dialogId]?.pid) {
+            mediaProcesses[dialogId].kill();
+            delete mediaProcesses[dialogId];
+          }
+        }
+      }
+
+      l.verbose("chai-sip stopAllMedia mediaclient",mediaclient)
 
       for (let dialogId in mediaclient) {
-        stopMedia(dialogId)
+        await stopMedia(dialogId)
        }
     }
 
@@ -566,6 +584,8 @@ module.exports = function (chai, utils, sipStack) {
     }
 
     function playMedia(dialogId, sdpMedia, sdpOrigin, prompt,channel=0) {
+      l.verbose("playmedia mediafile for",sipParams?.userid,sipParams?.rtpPort,JSON.stringify(sdpMedia,null,2))
+
 
 
       if (process.env.useMediatool) {
@@ -1355,7 +1375,7 @@ module.exports = function (chai, utils, sipStack) {
 
         if (!(sipParams.disableMedia || disableMedia)) {
 
-          l.verbose("media: 200 response playMedia for ", id);
+          l.verbose("media: 200 response playMedia for ", id,sipParams?.userid);
 
 
 
@@ -1683,7 +1703,7 @@ module.exports = function (chai, utils, sipStack) {
 
 
               localPort = await playIncomingReqMedia(rq);
-              l.verbose("response will use localPort",localPort)
+              l.verbose("playmedia response will use localPort",localPort)
             }
 
             resp = requestCallback(rq,localPort);
@@ -1805,7 +1825,7 @@ module.exports = function (chai, utils, sipStack) {
         return this;
       },
       playIncomingReqMedia: function (rq) {
-        playIncomingReqMedia(rq);
+        return playIncomingReqMedia(rq);
       },
       invite: function (destination, headers, contentType, body, params) {
         requestReady = false;
@@ -2085,8 +2105,8 @@ module.exports = function (chai, utils, sipStack) {
         }
 
       },
-      stop: function () {
-        stopAllMedia();
+      stop: async function () {
+        await stopAllMedia();
         mySip.stop();
 
       },
