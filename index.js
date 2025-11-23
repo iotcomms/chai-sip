@@ -504,7 +504,7 @@ module.exports = function (chai, utils, sipStack) {
 
             client.on("stopped", (params) => {
               l.verbose("dtmfclient mediatool client stopped userid ", sipParams.userid, JSON.stringify(params));
-              client.state="STOPPED";
+              //client.state="STOPPED";
               client.terminate(params.dialogId);
             });
 
