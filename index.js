@@ -11,6 +11,7 @@ const { execFile } = require("child_process");
 var mediatool;
 
 var mediaProcesses = {};
+var activeClients = [];
 
 
 if (process.env.LOG_LEVEL) {
@@ -238,7 +239,7 @@ module.exports = function (chai, utils, sipStack) {
         }
       }
       if(mediaProcesses[id]) {
-        l.verbose("stopMedia mediaProcess object not array, it is ",mediaProcesses[id]);
+        if(Array.isArray(mediaProcesses[id])) {
         for(var pid of mediaProcesses[id]) {
           try{
             l.verbose("Stopping mediaprocess... " + pid.pid);
@@ -250,6 +251,11 @@ module.exports = function (chai, utils, sipStack) {
             }
           }
 
+        }
+        } else {
+          l.verbose("stopMedia mediaProcess object not array, it is ",typeof mediaProcesses[id]);
+          l.verbose("Stopping non array mediaprocess... " + mediaProcesses[id].pid);
+          mediaProcesses[id].kill();
         }
         delete mediaProcesses[id];
 
@@ -476,6 +482,7 @@ module.exports = function (chai, utils, sipStack) {
             client.on("pipelineStarted", () => {
               l.verbose("dtmfclient pipelineStarted", JSON.stringify(params));
               activePipelines++;
+              activeClients.push(client);
             });
 
             client.on("error", (err) => {
@@ -486,10 +493,18 @@ module.exports = function (chai, utils, sipStack) {
             client.on("pipelineTerminated", (params) => {
               l.verbose("dtmfclient mediatool client terminated userid", sipParams.userid, JSON.stringify(params));
               activePipelines--;
+              let index = activeClients.indexOf(client);
+              if(index>=0) {
+                l.verbose("Found active client to be removed");
+                activeClients.splice(index);
+              } else {
+                l.verbose("Did not find active client to be removed");
+              }
             });
 
             client.on("stopped", (params) => {
               l.verbose("dtmfclient mediatool client stopped userid ", sipParams.userid, JSON.stringify(params));
+              client.state="STOPPED";
               client.terminate(params.dialogId);
             });
 
@@ -558,9 +573,23 @@ module.exports = function (chai, utils, sipStack) {
 
       l.verbose("chai-sip stopAllMedia mediaclient",mediaclient)
 
-      for (let dialogId in mediaclient) {
-        await stopMedia(dialogId)
-       }
+      for (let client in activeClients) {
+        let mc = activeClients[client];
+        l.verbose("stopAllMedia have hanging client, will terminate it")
+        if(mc.state=="RUNNING") {
+          await mc.stop();
+          l.verbose("mediaclient stopped")
+        } else if(mc.state=="STOPPED") {
+          await mc.terminate(mc.params.dialogId,true);
+          l.verbose("mediaclient terminated")
+        } else {
+          l.warn("Hanging media client in state: ",mc.state);
+        }
+
+
+
+
+      }
     }
 
     function getMediaStatus() {
