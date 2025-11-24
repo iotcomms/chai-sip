@@ -463,7 +463,15 @@ module.exports = function (chai, utils, sipStack) {
     }
 
 
-
+    function removeActiveClient(client) {
+      let index = activeClients.indexOf(client);
+      if(index>=0) {
+        l.verbose("Found active client to be removed");
+        activeClients.splice(index,1);
+      } else {
+        l.verbose("Did not find active client to be removed",params);
+      }
+    }
 
     function createPipeline(dialogId,siprecIndex=0) {
       return new Promise( (resolve) => {
@@ -493,13 +501,7 @@ module.exports = function (chai, utils, sipStack) {
             client.on("pipelineTerminated", (params) => {
               l.verbose("dtmfclient mediatool client terminated userid", sipParams.userid, JSON.stringify(params));
               activePipelines--;
-              let index = activeClients.indexOf(client);
-              if(index>=0) {
-                l.verbose("Found active client to be removed");
-                activeClients.splice(index);
-              } else {
-                l.verbose("Did not find active client to be removed");
-              }
+              removeActiveClient(client)
             });
 
             client.on("stopped", (params) => {
@@ -588,9 +590,11 @@ module.exports = function (chai, utils, sipStack) {
         }
       }
 
+      l.verbose("chai-sip stopAllMedia activeClients count",activeClients.length);
+
       for (let client in activeClients) {
         let mc = activeClients[client];
-        l.verbose("stopAllMedia have hanging activeClient client, will terminate it")
+        l.verbose("stopAllMedia have hanging activeClient client, will terminate it, state",mc.state);
         if(mc.state=="RUNNING") {
           await mc.stop();
           l.verbose("mediaclient stopped")
@@ -600,6 +604,7 @@ module.exports = function (chai, utils, sipStack) {
         } else {
           l.warn("Hanging media client in state: ",mc.state);
         }
+        removeActiveClient(mc);
       }
     }
 
