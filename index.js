@@ -571,11 +571,12 @@ module.exports = function (chai, utils, sipStack) {
         }
       }
 
-      l.verbose("chai-sip stopAllMedia mediaclient",mediaclient)
+      l.verbose("chai-sip stopAllMedia mediaclient",Object.keys(mediaclient))
 
-      for (let client in activeClients) {
-        let mc = activeClients[client];
-        l.verbose("stopAllMedia have hanging client, will terminate it")
+
+      for (let client in mediaclient) {
+        let mc = mediaclient[client];
+        l.verbose("stopAllMedia have hanging mediaclient client, will terminate it")
         if(mc.state=="RUNNING") {
           await mc.stop();
           l.verbose("mediaclient stopped")
@@ -585,10 +586,20 @@ module.exports = function (chai, utils, sipStack) {
         } else {
           l.warn("Hanging media client in state: ",mc.state);
         }
+      }
 
-
-
-
+      for (let client in activeClients) {
+        let mc = activeClients[client];
+        l.verbose("stopAllMedia have hanging activeClient client, will terminate it")
+        if(mc.state=="RUNNING") {
+          await mc.stop();
+          l.verbose("mediaclient stopped")
+        } else if(mc.state=="STOPPED") {
+          await mc.terminate(mc.params.dialogId,true);
+          l.verbose("mediaclient terminated")
+        } else {
+          l.warn("Hanging media client in state: ",mc.state);
+        }
       }
     }
 
