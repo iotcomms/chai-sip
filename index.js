@@ -1087,6 +1087,9 @@ module.exports = function (chai, utils, sipStack) {
           l.verbose("Call reInvite callback");
           callback(rs);
         }
+        if (rs.status >= 400) {
+          return;
+        }
 
         let lateOfferSdp = params.lateOfferSdp;
 
@@ -1537,6 +1540,7 @@ module.exports = function (chai, utils, sipStack) {
       l.debug("creds",creds);
       digest.signRequest(session, request, response, creds);
       l.verbose("Sending request again with authorization header", JSON.stringify(request, null, 2));
+      request.headers.cseq.seq++;
       wrappedSipSend(request, function (rs) {
         l.debug("Received after sending authorized request: " + rs.status);
         if (rs.status < 200) {
