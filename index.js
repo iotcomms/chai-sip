@@ -780,6 +780,8 @@ module.exports = function (chai, utils, sipStack) {
         callId = params.callId;
       }
 
+      let fromUser = params.fromUser || sipParams.userid;
+
 
 
       var req = {
@@ -787,7 +789,7 @@ module.exports = function (chai, utils, sipStack) {
         uri: destination,
         headers: {
           to: { uri: destination + ";transport=" + sipParams.transport },
-          from: { uri: "sip:" + sipParams.userid + "@" + sipParams.domain + "", params: { tag: rstring() } },
+          from: { uri: "sip:" + fromUser + "@" + sipParams.domain + "", params: { tag: rstring() } },
           "call-id": callId,
           cseq: { method: method, seq: Math.floor(Math.random() * 1e5) },
           contact: [contactObj],
@@ -1874,7 +1876,7 @@ module.exports = function (chai, utils, sipStack) {
       },
       invite: function (destination, headers, contentType, body, params) {
         requestReady = false;
-        l.info("sip invite called",process.env.useMediatool);
+        l.info("sip invite called",process.env.useMediatool,params);
         /*if(!body) {
           contentType = "application/sdp";
           body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
@@ -1901,7 +1903,8 @@ module.exports = function (chai, utils, sipStack) {
           const reqParams = {
             callId,
             codec: params?.codec,
-            protocol: params?.protocol
+            protocol: params?.protocol,
+            fromUser:params.fromUser
           };
 
           if(process.env.useMediatool) {
