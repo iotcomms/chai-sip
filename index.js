@@ -1507,7 +1507,7 @@ module.exports = function (chai, utils, sipStack) {
       }
 
     }
-    function replyToDigest(request, response, callback, provisionalCallback) {
+    function replyToDigest(request, response, callback, provisionalCallback,user) {
       l.verbose("replyToDigest", request.uri);
 
       if (sipParams.headers) {
@@ -1524,6 +1524,8 @@ module.exports = function (chai, utils, sipStack) {
       var session = { nonce: "" };
       var creds;
 
+
+
       let realm;
       if(response.headers["www-authenticate"]) {
         realm = JSON.parse(response.headers["www-authenticate"][0].realm);
@@ -1539,6 +1541,7 @@ module.exports = function (chai, utils, sipStack) {
         }
 
       } else {
+        let user = sip.parseUri(request.headers.from.uri).user || sipParams.userid;
         creds = { user: sipParams.userid, password: sipParams.password, realm: realm, nonce: "", uri: "" };
       }
       l.debug("creds",creds);
