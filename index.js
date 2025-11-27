@@ -1542,7 +1542,7 @@ module.exports = function (chai, utils, sipStack) {
 
       } else {
         let user = sip.parseUri(request.headers.from.uri).user || sipParams.userid;
-        creds = { user: sipParams.userid, password: sipParams.password, realm: realm, nonce: "", uri: "" };
+        creds = { user: user, password: sipParams.password, realm: realm, nonce: "", uri: "" };
       }
       l.debug("creds",creds);
       digest.signRequest(session, request, response, creds);
