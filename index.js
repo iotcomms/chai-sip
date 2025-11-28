@@ -813,20 +813,11 @@ module.exports = function (chai, utils, sipStack) {
       }
 
 
-      l.debug("req", JSON.stringify(req));
 
 
 
-      if(headers?.route) {
-          l.debug("passed headers.route", headers.route);
-          req.headers.route = headers.route;
 
-      } else if (sipParams.headers) {
-        if (sipParams.headers.route) {
-          l.debug("sipParams.headers.route", sipParams.headers.route);
-          req.headers.route = sipParams.headers.route;
-        }
-      }
+
 
 
 
@@ -853,6 +844,17 @@ module.exports = function (chai, utils, sipStack) {
       for (var key in headers) {
         req.headers[key] = headers[key];
       }
+
+      if(headers?.route) {
+          l.debug("passed headers.route", headers.route);
+          req.headers.route = headers.route;
+      } else if (sipParams.headers) {
+        if (sipParams.headers.route) {
+          l.debug("sipParams.headers.route", sipParams.headers.route);
+          req.headers.route = sipParams.headers.route;
+        }
+      }
+      l.debug("req", JSON.stringify(req,null,2));
 
       return req;
 
@@ -1859,6 +1861,7 @@ module.exports = function (chai, utils, sipStack) {
       onFinalResponse: function (callback, provisionalCallback) {
         if(requestReady) {
           requestReady=false;
+          l.debug("onFinalResponse request",request);
           sendRequest(request, callback, provisionalCallback);
         } else {
           setTimeout(()=>{this.onFinalResponse(callback, provisionalCallback);},100);
