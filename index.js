@@ -818,8 +818,8 @@ module.exports = function (chai, utils, sipStack) {
 
 
       if(headers?.route) {
-          l.debug("passed headers.route", sipParams.headers.route);
-          req.headers.route = sipParams.headers.route;
+          l.debug("passed headers.route", headers.route);
+          req.headers.route = headers.route;
 
       } else if (sipParams.headers) {
         if (sipParams.headers.route) {
