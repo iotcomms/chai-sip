@@ -817,7 +817,11 @@ module.exports = function (chai, utils, sipStack) {
 
 
 
-      if (sipParams.headers) {
+      if(headers?.route) {
+          l.debug("passed headers.route", sipParams.headers.route);
+          req.headers.route = sipParams.headers.route;
+
+      } else if (sipParams.headers) {
         if (sipParams.headers.route) {
           l.debug("sipParams.headers.route", sipParams.headers.route);
           req.headers.route = sipParams.headers.route;
@@ -1879,7 +1883,7 @@ module.exports = function (chai, utils, sipStack) {
       },
       invite: function (destination, headers, contentType, body, params) {
         requestReady = false;
-        l.info("sip invite called",process.env.useMediatool,params);
+        l.info("sip invite called",process.env.useMediatool,params,headers);
         /*if(!body) {
           contentType = "application/sdp";
           body = fs.readFileSync(__basedir+ "/invitebody", "utf8");
