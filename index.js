@@ -11,7 +11,7 @@ const { execFile } = require("child_process");
 var mediatool;
 
 var mediaProcesses = {};
-var activeClients = [];
+var activeClients = {};
 
 
 if (process.env.LOG_LEVEL) {
@@ -463,14 +463,15 @@ module.exports = function (chai, utils, sipStack) {
     }
 
 
-    function removeActiveClient(client) {
-      let index = activeClients.indexOf(client);
-      if(index>=0) {
-        l.verbose("Found active client to be removed");
-        activeClients.splice(index,1);
+    function removeActiveClient(dialogId) {
+      let client = activeClients[dialogId];
+      if(client) {
+        l.verbose("Found active client to be removed",dialogId);
+        delete activeClients[dialogId];
       } else {
-        l.verbose("Did not find active client to be removed",params);
+        l.verbose("Did not find active client to be removed",dialogId);
       }
+      activePipelines--;
     }
 
     function createPipeline(dialogId,siprecIndex=0) {
@@ -498,7 +499,7 @@ module.exports = function (chai, utils, sipStack) {
             client.on("pipelineStarted", () => {
               l.verbose("dtmfclient pipelineStarted", JSON.stringify(params));
               activePipelines++;
-              activeClients.push(client);
+              activeClients[params.dialogId] = client;
             });
 
             client.on("error", (err) => {
@@ -508,8 +509,7 @@ module.exports = function (chai, utils, sipStack) {
 
             client.on("pipelineTerminated", (params) => {
               l.verbose("dtmfclient mediatool client terminated userid", sipParams.userid, JSON.stringify(params));
-              activePipelines--;
-              removeActiveClient(client)
+              removeActiveClient(params.dialogId);
             });
 
             client.on("stopped", (params) => {
@@ -598,21 +598,26 @@ module.exports = function (chai, utils, sipStack) {
         }
       }
 
-      l.verbose("chai-sip stopAllMedia activeClients count",activeClients.length);
+      l.verbose("chai-sip stopAllMedia activeClients count",Object.keys(activeClients).length);
 
-      for (let client in activeClients) {
-        let mc = activeClients[client];
-        l.verbose("stopAllMedia have hanging activeClient client, will terminate it, state",mc.state);
-        if(mc.state=="RUNNING") {
-          await mc.stop();
-          l.verbose("mediaclient stopped")
-        } else if(mc.state=="STOPPED") {
-          await mc.terminate(mc.params.dialogId,true);
-          l.verbose("mediaclient terminated")
-        } else {
-          l.warn("Hanging media client in state: ",mc.state);
+      for (let client in Object.keys(activeClients)) {
+        if(client) {
+          l.debug("client",client);
+          let mc = activeClients[client];
+          if(mc) {
+            l.verbose("stopAllMedia have hanging activeClient client, will terminate it, state",client,mc.state);
+            if(mc.state=="RUNNING") {
+              await mc.stop();
+              l.verbose("mediaclient stopped")
+            } else if(mc.state=="STOPPED") {
+              await mc.terminate(mc.params.dialogId,true);
+              l.verbose("mediaclient terminated")
+            } else {
+              l.warn("Hanging media client in state: ",mc.state);
+            }
+            removeActiveClient(client);
+          }
         }
-        removeActiveClient(mc);
       }
     }
 
