@@ -477,12 +477,20 @@ module.exports = function (chai, utils, sipStack) {
       return new Promise( (resolve) => {
       if (process.env.useMediatool) {
 
-        if(mediaclient[dialogId] && siprecIndex>0) {
+        if(mediaclient[dialogId] && siprecIndex==0) {
           l.info("Mediaclient already running for dialogId",dialogId);
         }
-        l.verbose("createPipeline called, using mediatool", dialogId);
+        l.verbose("createPipeline called, using mediatool", dialogId,"siprecIndex",siprecIndex);
+        let id = dialogId;
+        if(siprecIndex==1) {
+          id = id + ":0";
+        } else if (siprecIndex==2) {
+          id = id += ":1";
+        }
         const msparams = {
-          pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: dialogId};
+
+          
+          pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: id};
           mediatool.createPipeline(msparams, (client,localPort) => {
 
 
@@ -505,7 +513,7 @@ module.exports = function (chai, utils, sipStack) {
             });
 
             client.on("stopped", (params) => {
-              l.verbose("dtmfclient mediatool client stopped userid ", sipParams.userid, JSON.stringify(params));
+              l.verbose("dtmfclient mediatool client stopped userid ", params.dialogId, sipParams.userid, JSON.stringify(params));
               //client.state="STOPPED";
               client.terminate(params.dialogId);
             });
@@ -536,7 +544,7 @@ module.exports = function (chai, utils, sipStack) {
             }
             currentMediaclient = mediaclient[dialogId];
             client.localPort = localPort;
-            l.verbose("createPipeline localPort",localPort);
+            l.verbose("media: createPipeline localPort",localPort,id);
             resolve(localPort)
           });
         } else {
@@ -629,7 +637,7 @@ module.exports = function (chai, utils, sipStack) {
     }
 
     function playMedia(dialogId, sdpMedia, sdpOrigin, prompt,channel=0) {
-      l.verbose("playmedia mediafile for",sipParams?.userid,sipParams?.rtpPort,JSON.stringify(sdpMedia,null,2))
+      l.verbose("playmedia mediafile for",dialogId,sipParams?.userid,sipParams?.rtpPort,JSON.stringify(sdpMedia,null,2))
 
 
 
@@ -670,6 +678,7 @@ module.exports = function (chai, utils, sipStack) {
         };
         if(mediaclient && mediaclient[dialogId]) {
           if(Array.isArray(mediaclient[dialogId])) {
+            l.verbose("mediaclient is array for ",dialogId);
             msparams.dialogId = msparams.dialogId+":"+channel;
             mediaclient[dialogId][channel].start(msparams);
           } else {
