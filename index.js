@@ -1459,17 +1459,24 @@ module.exports = function (chai, utils, sipStack) {
           }
 
           if(sipParams.callerPcap || sipParams.calleePcap) {
-
+            let callerDelay = 0;
+            if(sipParams.callerDelay) {
+              l.verbose("Will add pcap caller delay: "+sipParams.callerDelay);
+            }
             if (sipParams.callerPcap) {
               setTimeout(() => {
                 playPcapFile(id, sdp.media[0], sdp.origin.address, sipParams.callerPcap);
-              }, 2000);
+              }, 2000+callerDelay);
             }
 
+            let calleeDelay = 0;
+            if(sipParams.calleeDelay) {
+              l.verbose("Will add pcap callee delay: "+sipParams.calleeDelay);
+            }
             if (sipParams.calleePcap) {
               setTimeout(() => {
                 playPcapFile(id, sdp.media[1], sdp.origin.address, sipParams.calleePcap);
-              }, 2000);
+              }, 2000+calleeDelay);
             }
             return;
           }
@@ -1965,6 +1972,9 @@ module.exports = function (chai, utils, sipStack) {
 
           sipParams.callerPcap = params.callerPcap;
           sipParams.calleePcap = params.calleePcap;
+          sipParams.callerDelay = params.callerDelay;
+          sipParams.calleeDelay = params.calleeDelay;
+
 
           if(params.user) {
             sipParams.userid = params.user;
