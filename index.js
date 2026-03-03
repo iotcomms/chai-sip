@@ -1537,9 +1537,10 @@ module.exports = function (chai, utils, sipStack) {
     function replyToDigest(request, response, callback, provisionalCallback,user) {
       l.verbose("replyToDigest", request.uri);
 
-      if (sipParams.headers) {
+
+      if (!request?.headers?.route && sipParams.headers) {
         if (sipParams.headers.route) {
-          l.debug("Update route header");
+          l.debug("Update route header",sipParams.headers.route);
           request.headers.route = sipParams.headers.route;
         }
       }
@@ -1685,6 +1686,8 @@ module.exports = function (chai, utils, sipStack) {
           if (rs.status == 401 || rs.status == 407) {
             l.verbose("Received auth response");
             l.verbose(JSON.stringify(rs, null, 2));
+            l.verbose("for request");
+            l.verbose(JSON.stringify(rq, null, 2));
             replyToDigest(rq, rs, callback, provisionalCallback);
 
             return;
