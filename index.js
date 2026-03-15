@@ -472,6 +472,7 @@ module.exports = function (chai, utils, sipStack) {
         l.verbose("Did not find active client to be removed",dialogId);
       }
       activePipelines--;
+      l.verbose("activePipelines decreased for ",dialogId,"current:",activePipelines);
     }
 
     function createPipeline(dialogId,siprecIndex=0) {
@@ -499,6 +500,7 @@ module.exports = function (chai, utils, sipStack) {
             client.on("pipelineStarted", () => {
               l.verbose("dtmfclient pipelineStarted", JSON.stringify(params));
               activePipelines++;
+              l.verbose("activePipelines increased for ",id,"current:",activePipelines);
               activeClients[params.dialogId] = client;
             });
 
@@ -641,7 +643,7 @@ module.exports = function (chai, utils, sipStack) {
       };
     }
 
-    function playMedia(dialogId, sdpMedia, sdpOrigin, prompt,channel=0) {
+    function playMedia(dialogId, sdpMedia, sdpOrigin, prompt,channel=0,playVideo=false) {
       l.verbose("playmedia mediafile for",dialogId,sipParams?.userid,sipParams?.rtpPort,JSON.stringify(sdpMedia,null,2))
 
 
@@ -664,7 +666,7 @@ module.exports = function (chai, utils, sipStack) {
 
         let remoteCodec = "PCMA";
         let remotePt = 8;
-        if(sdpMedia.rtp && sdpMedia.rtp[0] && (sdpMedia.rtp[0].codec === "PCMU" || sdpMedia.rtp[0].codec === "G722" || sdpMedia.rtp[0].codec?.toUpperCase() === "OPUS")) {
+        if(sdpMedia.rtp && sdpMedia.rtp[0] && (sdpMedia.rtp[0].codec === "H264" || sdpMedia.rtp[0].codec === "PCMU" || sdpMedia.rtp[0].codec === "G722" || sdpMedia.rtp[0].codec?.toUpperCase() === "OPUS")) {
           remoteCodec = sdpMedia.rtp[0].codec;
           remotePt = sdpMedia.rtp[0].payload;
         }
@@ -679,7 +681,8 @@ module.exports = function (chai, utils, sipStack) {
           prompt: prompt,
           remoteCodec: remoteCodec,
           remotePt: remotePt,
-          remoteDtmfPt:remoteDtmfPt
+          remoteDtmfPt:remoteDtmfPt,
+          playVideo: playVideo
         };
         if(mediaclient && mediaclient[dialogId]) {
           if(Array.isArray(mediaclient[dialogId])) {
@@ -880,6 +883,8 @@ module.exports = function (chai, utils, sipStack) {
         return;
       var sdp = transform.parse(rq.content);
       if (sdp && !(sipParams.disableMedia)) {
+
+
         var id = rq.headers["call-id"];
 
         l.verbose("media: playIncomingReqMedia for ", rq.method, rq.uri, id,sipParams.mediaFile);
@@ -924,10 +929,15 @@ module.exports = function (chai, utils, sipStack) {
         if (sdp.media.length > 1) {
           if (sdp.media[1].type == "audio") {
             playMedia(id, sdp.media[1], sdp.origin.address, prompt1);
-
           }
+        }
 
-
+        if (sdp.media.length > 1) {
+          if (sdp.media[1].type == "video" && sipParams.videoEnabled) {
+            let videoId = id+":video";
+            let videoPort  = await createPipeline(videoId);
+            playMedia(videoId, sdp.media[1], sdp.origin.address, undefined,undefined,true);
+          }
         }
         return lp;
 
