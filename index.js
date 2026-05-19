@@ -682,7 +682,8 @@ module.exports = function (chai, utils, sipStack) {
           remoteCodec: remoteCodec,
           remotePt: remotePt,
           remoteDtmfPt:remoteDtmfPt,
-          playVideo: playVideo
+          playVideo: playVideo,
+          protocol: sdpMedia.protocol
         };
         if(mediaclient && mediaclient[dialogId]) {
           if(Array.isArray(mediaclient[dialogId])) {
