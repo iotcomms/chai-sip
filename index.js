@@ -13,6 +13,8 @@ var mediatool;
 var mediaProcesses = {};
 var activeClients = {};
 
+const timeout = ms => new Promise(res => setTimeout(res, ms));
+
 
 if (process.env.LOG_LEVEL) {
   l.level = process.env.LOG_LEVEL;
@@ -690,8 +692,10 @@ module.exports = function (chai, utils, sipStack) {
             l.verbose("mediaclient is array for ",dialogId);
             msparams.dialogId = msparams.dialogId+":"+channel;
             mediaclient[dialogId][channel].start(msparams);
+            mediaclient[dialogId][channel].msparams = msparams;
           } else {
             mediaclient[dialogId].start(msparams);
+            mediaclient[dialogId].msparams = msparams;
           }
         } else {
           l.info("No mediaclient found for ",dialogId);
@@ -1766,7 +1770,10 @@ module.exports = function (chai, utils, sipStack) {
           l.verbose("*Got reinvite");
           let id1 = rq.headers["call-id"];
           if(rq.content) {
-            stopMedia(id1);
+            if(mediaclient[id1]) {
+              l.verbose("reinvite active mediaclient msparams",mediaclient[id1].msparams);
+            }
+            await stopMedia(id1);
             l.debug("after stopmedia");
           }
         }
@@ -1789,10 +1796,7 @@ module.exports = function (chai, utils, sipStack) {
             let localPort = sipParams.rtpPort
 
             if (rq.content && (rq.method == "INVITE" || rq.method == "ACK") && sipParams.disableMedia != true && !(sipParams.reInvitePcapFile &&  rq.headers.to.params.tag) && !(sipParams.pcapFile &&  !rq.headers.to.params.tag) ) {
-
-
-
-
+              await timeout(500)
               localPort = await playIncomingReqMedia(rq);
               l.verbose("playmedia response will use localPort",localPort)
             }
