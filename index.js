@@ -1862,7 +1862,7 @@ module.exports = function (chai, utils, sipStack) {
               setTimeout(() => {
                 l.info("Resending response", resp);
                 wrappedSipSend(JSON.parse(JSON.stringify(resp)));
-              }, 1500);            
+              }, 2000);            
             }
           }
 
