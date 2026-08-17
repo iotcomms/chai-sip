@@ -370,6 +370,26 @@ module.exports = function (chai, utils, sipStack) {
       }
     }
 
+    function sendData(data,params,dialogId) {
+      let client;
+      if(dialogId) {
+        client = mediaclient[dialogId];
+      } else if (currentMediaclient) {
+        l.verbose("currentMediaclient localPort",currentMediaclient.localPort)
+        client = currentMediaclient;
+
+      }
+      if(client) {
+        if(Array.isArray(client)) {
+          client[0].sendData(data,params);
+        } else {
+          client.sendData(data,params);
+        }
+      } else {
+        l.error("chai-sip is not configured with mediatool media component. This is not implemented without it.");
+      }
+    }
+
      function sendTone(frequency,duration,dialogId) {
       let client;
       if(dialogId) {
@@ -492,10 +512,11 @@ module.exports = function (chai, utils, sipStack) {
           id = id += ":1";
         }
         const msparams = {
-
-          
-          pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient", dialogId: id};
-          mediatool.createPipeline(msparams, (client,localPort) => {
+          pipeline: sipParams.clientType === "webrtc" ? "webrtc" : "dtmfclient",
+          dialogId: id,
+          clientType: sipParams.clientType
+        };
+        mediatool.createPipeline(msparams, (client,localPort) => {
 
 
 
@@ -2213,6 +2234,12 @@ module.exports = function (chai, utils, sipStack) {
       sendDTMF: function (digit,duration=100.0,dialogId) {
         l.verbose("chai-sip sendDTMF",digit,duration);
         sendDTMF(digit,duration,dialogId);
+
+      },
+
+      sendData: function (data,params,dialogId) {
+        l.verbose("chai-sip sendData",data,params);
+        sendData(data,params,dialogId);
 
       },
 
