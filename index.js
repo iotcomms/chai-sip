@@ -1965,7 +1965,7 @@ module.exports = function (chai, utils, sipStack) {
 
             lateOffer = params.lateOffer;
             dropAck = params.dropAck;
-            ackDelay = params.ackDelay;
+            ackDelay = params.ackDelay || 0;
             useTelUri = params.useTelUri;
           }
 
@@ -2006,7 +2006,7 @@ module.exports = function (chai, utils, sipStack) {
 
           lateOffer = params.lateOffer;
           dropAck = params.dropAck;
-          ackDelay = params.ackDelay;
+          ackDelay = params.ackDelay || 0;
           useTelUri = params.useTelUri;
 
           sipParams.callerPcap = params.callerPcap;
